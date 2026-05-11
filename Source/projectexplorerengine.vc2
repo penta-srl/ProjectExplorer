@@ -1403,6 +1403,7 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 			laLines[1], ;
 			lnLines, ;
 			lnI, ;
+			lcCurrResponse, ;
 			llReturn, ;
 			lcFolder, ;
 			loAppRun, ;
@@ -1415,14 +1416,18 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 		lnPos = at('>', tcCommand)
 		if lnPos > 0
 			lcCommand = alltrim(left(tcCommand, lnPos - 1))
+			lcFolder  = iif(empty(tcFolder), This.cRepositoryFolder, tcFolder)
 			loCmd     = newobject('MSDOS', 'RunCommand.prg')
 			if loCmd.CreateMSDOSSession()
+				if not empty(lcFolder)
+					loCmd.RunCommand('cd /d "' + lcFolder + '"')
+				endif not empty(lcFolder)
 				loCmd.RunCommand(lcCommand)
 				lcResponse = ''
-				lcPrompt   = curdir()
-				lcPrompt   = iif(len(lcPrompt) > 1, left(lcPrompt, len(lcPrompt) - 1), ;
-					lcPrompt)
-				lcPrompt   = sys(5) + lcPrompt + '>'
+				lcPrompt   = iif(empty(lcFolder), sys(5) + curdir(), lcFolder)
+				lcPrompt   = iif(right(lcPrompt, 1) = '\' and len(lcPrompt) > 3, ;
+					left(lcPrompt, len(lcPrompt) - 1), lcPrompt)
+				lcPrompt   = lcPrompt + '>'
 				do while occurs(lower(lcPrompt), lower(lcResponse)) < 2
 					&& wait until the command prompt appears twice: once for the
 					&& initial prompt and then again after the command has finished
