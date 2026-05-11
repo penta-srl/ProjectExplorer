@@ -5740,7 +5740,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		This.oPersist.AddItem('ConvertToLowerCase', 'Thisform.lConvertToLowerCase', 'L', ;
 			.F., .F.)
 		This.oPersist.AddItem('ActivateProjectOnSelect', 'Thisform.lActivateProjectOnSelect', 'L', ;
-			.F., .T.)
+			.F., .F.)
 		
 		* Open a solution and exit if we didn't.
 		
