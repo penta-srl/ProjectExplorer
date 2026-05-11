@@ -2907,6 +2907,7 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 
 	#INCLUDE "projectexplorer.h"
 	*<DefinedPropArrayMethod>
+		*m: activateproject
 		*m: addfiletocollection		&& Adds a file to the project items collection
 		*m: cleanupproject		&& Cleans up the project
 		*m: closeproject		&& Closes the project
@@ -3020,6 +3021,7 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 			<memberdata name="updatemetadata" display="UpdateMetaData"/>
 			<memberdata name="llogging" display="lLogging"/>
 			<memberdata name="clogfile" display="cLogFile"/>
+			<memberdata name="activateproject" display="ActivateProject"/>
 		</VFPData>
 	*</PropValue>
 	
@@ -3093,6 +3095,21 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		*	UpdateMetaData:				Updates the structure of the meta data table
 		*								for the project
 		*==============================================================================
+		
+	ENDPROC
+
+	PROCEDURE activateproject
+		local lnDataSession
+		
+		if vartype(This.oProject) = 'O' and not empty(This.cProject)
+		    lnDataSession = set('DATASESSION')
+		    set datasession to 1
+		    modify project (This.cProject) nowait noshow
+		    set datasession to lnDataSession
+		    if vartype(This.oProject.ProjectHook) = 'O'
+		        This.oProject.ProjectHook.Activate()
+		    endif vartype(This.oProject.ProjectHook) = 'O'
+		endif vartype(This.oProject) = 'O' ...
 		
 	ENDPROC
 

@@ -7388,6 +7388,12 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		endif This.oSolution.oProjects.Count > 1 ...
 		This.oProjectSettings = This.oProject.oProjectSettings.Clone()
 		
+		if vartype(This.oProject.oProject) = 'O' and ;
+			(vartype(_vfp.ActiveProject) <> 'O' or ;
+			_vfp.ActiveProject.Name <> This.oProject.oProject.Name)
+			this.oProject.ActivateProject()
+		endif vartype(This.oProject.oProject) = 'O' ...
+		
 	ENDPROC
 
 	PROCEDURE setmain		&& Toggles the MainFile setting for the selected item
