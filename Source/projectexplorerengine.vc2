@@ -1005,7 +1005,7 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 		* Execute the batch file.
 		
 		lcCommand = '"' + fullpath(lcBatFile) + '"'
-		This.RunCommand(lcCommand, .F., lcPath)
+		This.RunCommand(lcCommand, .F., This.cRepositoryFolder)
 		erase (lcBatFile)
 		
 		* Pull the results into a cursor and get the status for the file(s).
