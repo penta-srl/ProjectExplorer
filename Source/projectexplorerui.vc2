@@ -2013,6 +2013,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		*p: ctestcommitmessage		&& The auto-commit message for unit tests
 		*p: ctreeviewsortexpression		&& The expression to sort the TreeView
 		*p: cversionnumber
+		*p: lactivateprojectonselect		&& .T. to activate the VFP project when a project is selected
 		*p: laddfiletoversioncontrolonadd		&& .T. to add a file to version control when it's added to a project
 		*p: laddindebugmode		&& .T. to display messages when addins are executed
 		*p: lallowanyfiletype		&& .T. for the Add and New buttons to allow any file type or .F. for only a file of the selected type
@@ -2033,7 +2034,6 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		*p: nsavedminwidth		&& The MinWidth when the form is expanded
 		*p: nsavedtreeviewwidth		&& The TreeView container width the last time the form was expanded
 		*p: nsavedwidth		&& The Width the last time the form was expanded
-		*p: lactivateprojectonselect		&& .T. to activate the VFP project when a project is selected
 		*p: oaddins		&& A reference to a ProjectAddins object
 		*p: ocategorymanager		&& A reference to a ProjectExplorerCategoryManager object
 		*p: oevents		&& A reference to a ProjectExplorerWindowManager object
@@ -2072,6 +2072,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		DoCreate = .T.
 		Height = 530
 		Icon = images\projectexplorer.ico
+		lactivateprojectonselect = .F.
 		laddfiletoversioncontrolonadd = .F.
 		laddindebugmode = .F.
 		lallowanyfiletype = .F.
@@ -2080,7 +2081,6 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		lexpanded = .T.
 		lignorefilter = .F.
 		lloadtreeviewatstartup = .F.
-		lactivateprojectonselect = .F.
 		lmodifyondblclick = .F.
 		lremovefilefromversioncontrolonremove = .F.
 		lremoveunusedheaders = .F.
@@ -5740,7 +5740,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		This.oPersist.AddItem('ConvertToLowerCase', 'Thisform.lConvertToLowerCase', 'L', ;
 			.F., .F.)
 		This.oPersist.AddItem('ActivateProjectOnSelect', 'Thisform.lActivateProjectOnSelect', 'L', ;
-			.F., .F.)
+			.F., .T.)
 		
 		* Open a solution and exit if we didn't.
 		
@@ -10267,24 +10267,24 @@ DEFINE CLASS projectexploreroptions AS projectexplorermodaldialog OF "projectexp
 	*-- OBJECTDATA items order determines ZOrder / El orden de los items OBJECTDATA determina el ZOrder 
 	*< OBJECTDATA: ObjPath="ctrOtherOptions" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="ctrVCOptions" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="ctrWindowType" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="opgWindowType" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="cntDblClickAction" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="opgDblClickAction" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="chkDisplayIcons" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="lblVersionControl" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="chkAddFiles" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="chkUseGUI" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="chkRemoveFiles" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="ctrWindowType" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="chklConvertToLowerCase" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="chkActivateProjectOnSelect" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="cboVersionControl" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="chkUseTry" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="chkShowSplitter" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="chkAddinDebugMode" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="chkAllowAnyFileType" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="chkDisplayFullPath" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="opgWindowType" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="chkRemoveUnusedHeaders" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="cboVersionControl" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="chkDisplayFullPath" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="chkAllowAnyFileType" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="chkAddinDebugMode" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="chkShowSplitter" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="chkUseTry" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="chkUseGUI" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="chkActivateProjectOnSelect" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="chklConvertToLowerCase" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="cmdOK" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="cmdCancel" UniqueID="" Timestamp="" />
 
@@ -10309,8 +10309,8 @@ DEFINE CLASS projectexploreroptions AS projectexplorermodaldialog OF "projectexp
 
 	*<PropValue>
 		Caption = "Options"
-		csettingsfile =
-		cversioncontrolprovider =
+		csettingsfile = 
+		cversioncontrolprovider = 
 		DoCreate = .T.
 		Height = 455
 		lactivateprojectonselect = .F.
@@ -10361,6 +10361,21 @@ DEFINE CLASS projectexploreroptions AS projectexplorermodaldialog OF "projectexp
 		Width = 156, ;
 		ZOrderSet = 9
 		*< END OBJECT: ClassLib="projectexplorerctrls.vcx" BaseClass="combobox" />
+
+	ADD OBJECT 'chkActivateProjectOnSelect' AS projectexplorercheckbox WITH ;
+		Alignment = 0, ;
+		Caption = "A\<ctivate VFP project on selection", ;
+		ControlSource = "Thisform.lActivateProjectOnSelect", ;
+		Height = 17, ;
+		Left = 20, ;
+		Name = "chkActivateProjectOnSelect", ;
+		StatusBarText = "Turn this on to automatically activate the VFP project when it is selected in the tree", ;
+		TabIndex = 20, ;
+		ToolTipText = "Turn this on to automatically activate the VFP project when it is selected in the tree", ;
+		Top = 380, ;
+		Width = 191, ;
+		ZOrderSet = 10
+		*< END OBJECT: ClassLib="projectexplorerctrls.vcx" BaseClass="checkbox" />
 
 	ADD OBJECT 'chkAddFiles' AS projectexplorercheckbox WITH ;
 		Alignment = 0, ;
@@ -10448,21 +10463,6 @@ DEFINE CLASS projectexploreroptions AS projectexplorermodaldialog OF "projectexp
 		ZOrderSet = 10
 		*< END OBJECT: ClassLib="projectexplorerctrls.vcx" BaseClass="checkbox" />
 
-	ADD OBJECT 'chkActivateProjectOnSelect' AS projectexplorercheckbox WITH ;
-		Alignment = 0, ;
-		Caption = "\<Activate VFP project on selection", ;
-		ControlSource = "Thisform.lActivateProjectOnSelect", ;
-		Height = 17, ;
-		Left = 20, ;
-		Name = "chkActivateProjectOnSelect", ;
-		StatusBarText = "Turn this on to automatically activate the VFP project when it is selected in the tree", ;
-		TabIndex = 22, ;
-		ToolTipText = "Turn this on to automatically activate the VFP project when it is selected in the tree", ;
-		Top = 380, ;
-		Width = 210, ;
-		ZOrderSet = 10
-		*< END OBJECT: ClassLib="projectexplorerctrls.vcx" BaseClass="checkbox" />
-
 	ADD OBJECT 'chkRemoveFiles' AS projectexplorercheckbox WITH ;
 		Alignment = 0, ;
 		Caption = "R\<emove files from version control upon removal", ;
@@ -10526,21 +10526,21 @@ DEFINE CLASS projectexploreroptions AS projectexplorermodaldialog OF "projectexp
 		TabIndex = 18, ;
 		ToolTipText = "Turn this on to use a TRY structure when running a program or application", ;
 		Top = 350, ;
-		Width = 191, ;
+		Width = 192, ;
 		ZOrderSet = 10
 		*< END OBJECT: ClassLib="projectexplorerctrls.vcx" BaseClass="checkbox" />
 
 	ADD OBJECT 'cmdCancel' AS projectexplorercancelbutton WITH ;
 		Left = 160, ;
 		Name = "cmdCancel", ;
-		TabIndex = 21, ;
+		TabIndex = 22, ;
 		Top = 420
 		*< END OBJECT: ClassLib="projectexplorerbutton.vcx" BaseClass="commandbutton" />
 
 	ADD OBJECT 'cmdOK' AS projectexplorerokbutton WITH ;
 		Left = 75, ;
 		Name = "cmdOK", ;
-		TabIndex = 20, ;
+		TabIndex = 21, ;
 		Top = 420
 		*< END OBJECT: ClassLib="projectexplorerbutton.vcx" BaseClass="commandbutton" />
 
