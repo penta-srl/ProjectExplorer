@@ -47,11 +47,16 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 * Helper method to set up the operations object.
 *******************************************************************************
 	function SetupOperations(tnIncludeInVersionControl, tlAutoCommit)
+		local lcFoxBin2PRG, ;
+			loConverter
+
 		lcFoxBin2PRG = execscript(_screen.cThorDispatcher, ;
-		'Thor_Proc_GetFoxBin2PrgFolder')
+			'Thor_Proc_GetFoxBin2PrgFolder')
+		loConverter  = newobject('BinaryToTextConversionFoxBin2PRG', ;
+			'Source\ProjectExplorerEngine.vcx', '', lcFoxBin2PRG)
 		This.oOperations = createobject('MockVersionControlOperations', ;
 			tnIncludeInVersionControl, tlAutoCommit, 'file added', ;
-			'file removed', This.oAddins, lcFoxBin2PRG, This.cTestDataFolder)
+			'file removed', This.oAddins, This.cTestDataFolder, loConverter, .f.)
 	endfunc
 
 *******************************************************************************
@@ -220,7 +225,7 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 		erase (lcFile)
 		lcVCT = forceext(lcFile, 'vct')
 		erase (lcVCT)
-		This.AssertEquals(lcVCT, This.oOperations.aFiles[2], ;
+		This.AssertEquals(upper(lcVCT), upper(This.oOperations.aFiles[2]), ;
 			'Did not add associated file')
 	endfunc
 
@@ -451,7 +456,7 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 		This.oOperations.RemoveFile(lcFile)
 		erase (lcFile)
 		erase (lcVCT)
-		This.AssertEquals(lcVCT, This.oOperations.aFiles[2], ;
+		This.AssertEquals(upper(lcVCT), upper(This.oOperations.aFiles[2]), ;
 			'Did not remove associated file')
 	endfunc
 
@@ -628,7 +633,7 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 		This.oOperations.RevertFile(lcFile)
 		erase (lcFile)
 		erase (lcVCT)
-		This.AssertEquals(lcVCT, This.oOperations.aFiles[2], ;
+		This.AssertEquals(upper(lcVCT), upper(This.oOperations.aFiles[2]), ;
 			'Did not revert associated file')
 	endfunc
 
@@ -791,8 +796,8 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 		erase (lcFile)
 		lcVCT = forceext(lcFile, 'vct')
 		erase (lcVCT)
-		This.AssertEquals(lcVCT, ;
-			This.oOperations.aCommitFiles[2], 'Did not commit associated file')
+		This.AssertEquals(upper(lcVCT), ;
+			upper(This.oOperations.aCommitFiles[2]), 'Did not commit associated file')
 	endfunc
 
 *******************************************************************************
@@ -988,15 +993,15 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 		llOK = This.oOperations.CommitAllFiles('commit')
 		This.AssertFalse(llOK, 'Returned .T. when no array passed')
 		dimension laFiles[1]
-		llOK = This.oOperations.CommitAllFiles('commit', @laFiles)
+		llOK = This.oOperations.CommitAllFiles('commit')
 		This.AssertFalse(llOK, ;
 			'Returned .T. when array with empty element passed')
 		laFiles[1] = ''
-		llOK = This.oOperations.CommitAllFiles('commit', @laFiles)
+		llOK = This.oOperations.CommitAllFiles('commit')
 		This.AssertFalse(llOK, ;
 			'Returned .T. when array with empty element passed')
 		laFiles[1] = 'xxx'
-		llOK = This.oOperations.CommitAllFiles('commit', @laFiles)
+		llOK = This.oOperations.CommitAllFiles('commit')
 		This.AssertFalse(llOK, ;
 			'Returned .T. when array with non-existent file passed')
 	endfunc
@@ -1008,9 +1013,9 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 	function Test_CommitAllFiles_Fails_InvalidMessage
 		dimension laFiles[1]
 		laFiles[1] = This.cFile
-		llOK = This.oOperations.CommitAllFiles(.F., @laFiles)
+		llOK = This.oOperations.CommitAllFiles(.F.)
 		This.AssertFalse(llOK, 'Returned .T. when no message passed')
-		llOK = This.oOperations.CommitAllFiles('', @laFiles)
+		llOK = This.oOperations.CommitAllFiles('')
 		This.AssertFalse(llOK, 'Returned .T. when empty message passed')
 	endfunc
 
@@ -1027,7 +1032,7 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 		_vfp.ActiveProject.Files.Add(lcFile)
 		dimension laFiles[1]
 		laFiles[1] = lcProject
-		This.oOperations.CommitAllFiles('commit', @laFiles)
+		This.oOperations.CommitAllFiles('commit')
 		lcText          = forceext(lcFile, 'vc2')
 		lcTextProject   = forceext(lcProject, 'pj2')
 		llExists        = file(lcText)
@@ -1056,7 +1061,7 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 		_vfp.ActiveProject.Files.Add(lcFile)
 		dimension laFiles[1]
 		laFiles[1] = lcProject
-		This.oOperations.CommitAllFiles('commit', @laFiles)
+		This.oOperations.CommitAllFiles('commit')
 		lcText          = forceext(lcFile, 'vc2')
 		lcTextProject   = forceext(lcProject, 'pj2')
 		llExists        = file(lcText)
@@ -1078,7 +1083,7 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 	function Test_CommitAllFiles_CallsBeforeCommitAllFiles
 		dimension laFiles[1]
 		laFiles[1] = This.cFile
-		llWorks = This.oOperations.CommitAllFiles('commit', @laFiles)
+		llWorks = This.oOperations.CommitAllFiles('commit')
 		llAddin = ascan(This.oAddins.aMethods, 'BeforeCommitAllFiles') > 0
 		This.AssertTrue(llAddin, ;
 			'Did not call BeforeCommitAllFiles')
@@ -1092,7 +1097,7 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 	function Test_CommitAllFiles_CallsAfterCommitAllFiles
 		dimension laFiles[1]
 		laFiles[1] = This.cFile
-		llWorks = This.oOperations.CommitAllFiles('commit', @laFiles)
+		llWorks = This.oOperations.CommitAllFiles('commit')
 		llAddin = ascan(This.oAddins.aMethods, 'AfterCommitAllFiles') > 0
 		This.AssertTrue(llAddin, ;
 			'Did not call AfterCommitAllFiles')
@@ -1105,7 +1110,7 @@ define class VersionControlOperationsTests as FxuTestCase of FxuTestCase.prg
 		dimension laFiles[1]
 		laFiles[1] = This.cFile
 		This.oAddins.lValueToReturn = .F.
-		llWorks = This.oOperations.CommitAllFiles('commit', @laFiles)
+		llWorks = This.oOperations.CommitAllFiles('commit')
 		This.AssertFalse(llWorks, 'Returned .T. when addin returned .F.')
 	endfunc
 
@@ -1518,24 +1523,33 @@ define class MockVersionControlOperations as VersionControlOperations ;
 	dimension aCommitFiles[1]
 
 	function AddFilesInternal(taFiles)
+		dimension This.aFiles[alen(taFiles)]
 		acopy(taFiles, This.aFiles)
+		return .T.
 	endfunc
 
 	function RemoveFilesInternal(taFiles)
+		dimension This.aFiles[alen(taFiles)]
 		acopy(taFiles, This.aFiles)
+		return .T.
 	endfunc
 
 	function RevertFilesInternal(taFiles)
+		dimension This.aFiles[alen(taFiles)]
 		acopy(taFiles, This.aFiles)
+		return .T.
 	endfunc
 
 	function CommitFilesInternal(tcMessage, taFiles)
 		This.lCommitFilesCalled = .T.
+		dimension This.aCommitFiles[alen(taFiles)]
 		acopy(taFiles, This.aCommitFiles)
+		return .T.
 	endfunc
 
 	function CommitAllFilesInternal(tcMessage)
 		This.lCommitAllFilesCalled = .T.
+		return .T.
 	endfunc
 	
 	function GetStatusForFileInternal(tcFile)
