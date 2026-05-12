@@ -5972,16 +5972,21 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 		
 			llReturn = This.oVersionControl.CommitFiles(tcMessage, @laFiles)
 		
-		* Get the status for each item.
-		
-			if llReturn 
+		* Refresh status for all committed items with a single batch call
+		* instead of one GetStatusForFile call per item.
+
+			if llReturn
+				local loItems, loItem
+				loItems = createobject('Collection')
 				for each loItem in taItems foxobject
 					if vartype(loItem) = 'O'
-						lcFile = loItem.Path
-						loItem.VersionControlStatus = This.oVersionControl.GetStatusForFile(lcFile)
+						loItems.Add(loItem)
 					endif vartype(loItem) = 'O'
 				next loItem
-			endif llReturn 
+				if loItems.Count > 0
+					This.oVersionControl.GetStatusForAllFiles(loItems)
+				endif loItems.Count > 0
+			endif llReturn
 		
 		* Reopen the projects if we closed them.
 		
