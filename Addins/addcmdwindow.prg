@@ -36,8 +36,8 @@ ENDTRY
 * Add a shortcut to get to the 'command window'
 *ON KEY LABEL CTRL+F3 DO setFocusCmdWin in SYS(16) && this .prg, path may not always exist so this sets the full path and the name of this prg
 LOCAL m.keyShortCut
-m.keyShortCut = 'ON KEY LABEL CTRL+F3 DO setFocusCmdWin in ' + SYS(16)
-&keyShortCut
+m.keyShortCut = 'ON KEY LABEL CTRL+F3 DO setFocusCmdWin in "' + SYS(16) + '"'
+execscript(keyShortCut)
 
 return llOK
 

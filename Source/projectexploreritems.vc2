@@ -2373,7 +2373,7 @@ DEFINE CLASS projectitemprogram AS projectitemfile OF "projectexploreritems.vcx"
 	ENDPROC
 
 	PROCEDURE runitem
-		* For some reason, using Run() on most things from code doesn't run it, so
+		* For some reason, using Run on most things from code doesn't run it, so
 		* let's do it manually.
 		
 		lparameters toProject
@@ -2395,6 +2395,8 @@ DEFINE CLASS projectitemprogram AS projectitemfile OF "projectexploreritems.vcx"
 			otherwise
 				do (This.Path)
 		endcase
+		llReturn = iif(type('llReturn') = 'U', .T., llReturn)
+			&& in case the program did CLEAR ALL
 		return llReturn
 		
 	ENDPROC

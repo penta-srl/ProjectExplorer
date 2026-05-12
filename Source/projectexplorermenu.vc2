@@ -1622,10 +1622,13 @@ DEFINE CLASS projectexplorershortcutmenu AS projectexplorercustom OF "projectexp
 		
 				if lnSkipCount < lnMenuCount and empty(tcParentMenu)
 					activate popup (lcMenu)
-					if not empty(lcMenu)
-						deactivate popup (lcMenu)
-						release popup (lcMenu) extended
-					endif not empty(lcMenu)
+					try
+						if not empty(lcMenu)
+							deactivate popup (lcMenu)
+							release popup (lcMenu) extended
+						endif not empty(lcMenu)
+					catch
+					endtry
 				endif lnSkipCount < lnMenuCount ...
 			endif vartype(.aMenu[1]) = 'C' ...
 		endwith

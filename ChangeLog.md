@@ -4,6 +4,14 @@ Project Explorer replaces the VFP Project Manager with a modern interface and mo
 
 ## Release History
 
+### *** TODO: when
+
+* Fixed an issue in AddCmdWindow.prg when there's a space in the path (issue #227).
+
+* Fixed an incorrect tooltip for the Clear button in the Sort and Filter dialog (issue #228).
+
+* Project Explorer no longer gives an error if you run the main program and it does a CLEAR ALL.
+
 ### 2025-05-22, version 1.0.09273
 
 * A tag starting with "Code" no longer conflicts with the built-in Code tag.

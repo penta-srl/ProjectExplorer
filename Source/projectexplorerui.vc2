@@ -11234,15 +11234,15 @@ DEFINE CLASS projectexplorersortfilter AS projectexplorermodaldialog OF "project
  	*< CLASSDATA: Baseclass="form" Timestamp="" Scale="Pixels" Uniqueid="" />
 
 	*-- OBJECTDATA items order determines ZOrder / El orden de los items OBJECTDATA determina el ZOrder 
+	*< OBJECTDATA: ObjPath="cntFilter" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="cntSort" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="lblProperties" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="lblSort" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="cboSort" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="chkAsc" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="chkDesc" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="cmdOK" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="cmdCancel" UniqueID="" Timestamp="" />
-	*< OBJECTDATA: ObjPath="cntFilter" UniqueID="" Timestamp="" />
+	*< OBJECTDATA: ObjPath="lblProperties" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="edtFilter" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="cboProperties" UniqueID="" Timestamp="" />
 	*< OBJECTDATA: ObjPath="cmdInsert" UniqueID="" Timestamp="" />
@@ -11340,9 +11340,9 @@ DEFINE CLASS projectexplorersortfilter AS projectexplorermodaldialog OF "project
 		Height = 22, ;
 		Left = 325, ;
 		Name = "cmdClear", ;
-		StatusBarText = "Display the Expression Builder", ;
+		StatusBarText = "Clear the filter", ;
 		TabIndex = 8, ;
-		ToolTipText = "Display the Expression Builder", ;
+		ToolTipText = "Clear the filter", ;
 		Top = 145, ;
 		Width = 22
 		*< END OBJECT: ClassLib="projectexplorerctrls.vcx" BaseClass="commandbutton" />
