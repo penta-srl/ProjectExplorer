@@ -4,13 +4,13 @@ define class ProjectSettingsTests as FxuTestCase of FxuTestCase.prg
 	#IF .f.
 	LOCAL THIS AS ProjectSettingsTests OF ProjectSettingsTests.PRG
 	#ENDIF
-	
+
 	cTestFolder     = ''
 	cTestDataFolder = ''
 	cTestProgram    = ''
 	icTestPrefix    = 'Test_'
 	ilAllowDebug    = .T.
-	
+
 	cProject        = ''
 	oProject        = .NULL.
 	cCurrPath       = ''
@@ -30,7 +30,7 @@ define class ProjectSettingsTests as FxuTestCase of FxuTestCase.prg
 		if not directory(This.cTestDataFolder)
 			md (This.cTestDataFolder)
 		endif not directory(This.cTestDataFolder)
-		
+
 		This.cProject = This.CreateProject()
 		modify project (This.cProject) noshow nowait
 		This.oProject = _vfp.ActiveProject
@@ -67,6 +67,12 @@ define class ProjectSettingsTests as FxuTestCase of FxuTestCase.prg
 *******************************************************************************
 
 	function CreateProject
+		local lcCursor, ;
+			lcProject, ;
+			lcProjectName, ;
+			lcTestDataFolder, ;
+			lcXML
+
 		text to lcXML noshow
 <?xml version = "1.0" encoding="Windows-1252" standalone="yes"?>
 <VFPData>
@@ -101,7 +107,7 @@ define class ProjectSettingsTests as FxuTestCase of FxuTestCase.prg
 		<user>testuser</user>
 	</test>
 	<test>
-		<name>..\..\source\images\labels.ico</name>
+		<name>..\..\source\images\projectexplorerlabels.ico</name>
 		<type>i</type>
 		<id>0</id>
 		<timestamp>0</timestamp>
@@ -132,6 +138,17 @@ define class ProjectSettingsTests as FxuTestCase of FxuTestCase.prg
 	</test>
 </VFPData>
 		endtext
+
+		lcProjectName    = This.cTestDataFolder + 'test.pjx'
+		lcTestDataFolder = left(This.cTestDataFolder, ;
+			len(This.cTestDataFolder) - 1)
+		lcXML = strtran(lcXML, ;
+			'D:\PROJECT EXPLORER\TESTS\TESTDATA\TEST.PJX', ;
+			upper(lcProjectName))
+		lcXML = strtran(lcXML, ;
+			'd:\project explorer\tests\testdata', ;
+			lower(lcTestDataFolder))
+
 		lcCursor = sys(2015)
 		select * from ProjectExplorer.pjx again into cursor (lcCursor) ;
 			nofilter readwrite
@@ -183,7 +200,7 @@ define class ProjectSettingsTests as FxuTestCase of FxuTestCase.prg
 			addbs(lower(loSettings.Home)), 'Incorrect home')
 		This.AssertEquals(date(), ttod(loSettings.LastBuilt), ;
 			'Incorrect LastBuilt')
-		This.AssertEquals(lower(fullpath('source\images\labels.ico')), ;
+		This.AssertEquals(lower(fullpath('source\images\projectexplorerlabels.ico')), ;
 			loSettings.Icon, 'Incorrect Icon')
 		This.AssertEquals(lower(fullpath('source\executefile.prg')), ;
 			loSettings.MainFile, 'Incorrect MainFile')
@@ -247,8 +264,6 @@ define class ProjectSettingsTests as FxuTestCase of FxuTestCase.prg
 		loSettings.MajorVersionNumber = '2'
 		loSettings.MinorVersionNumber = '3'
 		loSettings.BuildNumber        = '4'
-		loSettings.ProjectHookClass   = 'ProjectExplorerProjectHook'
-		loSettings.ProjectHookLibrary = 'ProjectExplorerProjectHook.vcx'
 
 * Save the settings.
 
