@@ -808,15 +808,16 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 		* Purpose:			Gets the status for all files in the specified collection
 		* Author:			Doug Hennig
 		* Last Revision:	06/15/2022
-		* Parameters:		toFiles - a collection of ProjectItem objects to get the
+		* Parameters:		toFiles       - a collection of ProjectItem objects to get the
 		*						status for
+		*					toProjectItem - optional ProjectItem for the project file itself
 		* Returns:			.T.
 		* Environment in:	This.oConverter contains a reference to a
 		*						BinaryToTextConversion subclass
 		* Environment out:	the status of each ProjectItem object has been set
 		*==============================================================================
-		
-		lparameters toFiles
+
+		lparameters toFiles, toProjectItem
 		local lcPath, ;
 			lcStatusFile, ;
 			lcText, ;
@@ -949,11 +950,24 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 					loFile.VersionControlStatus = ccVC_STATUS_CLEAN
 				endif llFound
 			next loFile
+
+		* If a project item was passed, set its status from the same cursor
+		* instead of making a separate git call.
+
+			if vartype(toProjectItem) = 'O' and pemstatus(toProjectItem, 'Path', 5)
+				seek padr(upper(toProjectItem.Path), 240)
+				if found()
+					toProjectItem.VersionControlStatus = This.GetStatusCode(STATUS)
+				else
+					toProjectItem.VersionControlStatus = ccVC_STATUS_CLEAN
+				endif found()
+			endif vartype(toProjectItem) = 'O' ...
+
 			use
 			select (lnSelect)
 			erase (lcStatusFile)
 		endif file(lcStatusFile)
-		
+
 	ENDPROC
 
 	PROCEDURE getstatusforfileinternal
@@ -1828,15 +1842,16 @@ DEFINE CLASS mercurialoperations AS versioncontroloperations OF "projectexplorer
 		* Purpose:			Gets the status for all files in the specified collection
 		* Author:			Doug Hennig
 		* Last Revision:	06/26/2018
-		* Parameters:		toFiles - a collection of ProjectItem objects to get the
+		* Parameters:		toFiles       - a collection of ProjectItem objects to get the
 		*						status for
+		*					toProjectItem - optional ProjectItem for the project file itself
 		* Returns:			.T.
 		* Environment in:	This.oConverter contains a reference to a
 		*						BinaryToTextConversion subclass
 		* Environment out:	the status of each ProjectItem object has been set
 		*==============================================================================
-		
-		lparameters toFiles
+
+		lparameters toFiles, toProjectItem
 		local lcPath, ;
 			lcStatusFile, ;
 			lcText, ;
@@ -1957,12 +1972,24 @@ DEFINE CLASS mercurialoperations AS versioncontroloperations OF "projectexplorer
 					loFile.VersionControlStatus = ccVC_STATUS_CLEAN
 				endif llFound
 			next loFile
-		
+
+		* If a project item was passed, set its status from the same cursor
+		* instead of making a separate hg call.
+
+			if vartype(toProjectItem) = 'O' and pemstatus(toProjectItem, 'Path', 5)
+				seek padr(upper(toProjectItem.Path), 240)
+				if found()
+					toProjectItem.VersionControlStatus = trim(STATUS)
+				else
+					toProjectItem.VersionControlStatus = ccVC_STATUS_CLEAN
+				endif found()
+			endif vartype(toProjectItem) = 'O' ...
+
 			use
 			select (lnSelect)
 			erase (lcStatusFile)
 		endif file(lcStatusFile)
-		
+
 	ENDPROC
 
 	PROCEDURE getstatusforfileinternal
@@ -3969,15 +3996,18 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		
 		* Get the version control status for all files; note that we have to close the
 		* project if we're not storing text equivalents only because its being open
-		* causes databases to be open which prevents us from getting the status. We won
-		* t reopen it here because GetProjectStatus does that.
-		
+		* causes databases to be open which prevents us from getting the status.
+		* Pass the project item so its status is resolved in the same VCS call,
+		* then reopen the project (previously done inside GetProjectStatus).
+
 			if vartype(This.oVersionControl) = 'O'
 				if This.oVersionControl.nIncludeInVersionControl <> 2
 					This.CloseProject()
 				endif This.oVersionControl.nIncludeInVersionControl <> 2
-				This.oVersionControl.GetStatusForAllFiles(This.oProjectItems)
-				This.GetProjectStatus()
+				This.oVersionControl.GetStatusForAllFiles(This.oProjectItems, This.oProjectItem)
+				if This.oVersionControl.nIncludeInVersionControl <> 2
+					This.OpenProject()
+				endif This.oVersionControl.nIncludeInVersionControl <> 2
 			endif vartype(This.oVersionControl) = 'O'
 		endif llReturn
 		select (lnSelect)
@@ -6023,10 +6053,11 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 			endif This.nIncludeInVersionControl <> 2
 		
 		* Get the status for all files in all projects and for the projects themselves.
-		
+		* Pass the project item as second parameter so its status is resolved in the
+		* same VCS call, saving one GetStatusForFile call per project.
+
 			for each loProject in This.oProjects foxobject
-				This.oVersionControl.GetStatusForAllFiles(loProject.oProjectItems)
-				loProject.oProjectItem.VersionControlStatus = This.oVersionControl.GetStatusForFile(loProject.oProjectItem.Path)
+				This.oVersionControl.GetStatusForAllFiles(loProject.oProjectItems, loProject.oProjectItem)
 			next loProject
 		
 		* Reopen the projects.
@@ -8750,27 +8781,29 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 		* Purpose:			Gets the status for all files in the specified collection
 		* Author:			Doug Hennig
 		* Last Revision:	04/28/2017
-		* Parameters:		toFiles - a collection of ProjectItem objects to get the
+		* Parameters:		toFiles       - a collection of ProjectItem objects to get the
 		*						status for
+		*					toProjectItem - optional ProjectItem for the project file itself;
+		*						its status is set from the same cursor without an extra VCS call
 		* Returns:			.T. if it succeeded
 		* Environment in:	none
 		* Environment out:	the status of each ProjectItem object has been set
 		*==============================================================================
-		
-		lparameters toFiles
-		
+
+		lparameters toFiles, toProjectItem
+
 		* Ensure we have a valid collection.
-		
+
 		if vartype(toFiles) <> 'O' or not pemstatus(toFiles, 'Count', 5)
 			This.cErrorMessage = 'Invalid collection specified.'
 			return .F.
 		endif vartype(toFiles) <> 'O' ...
 		This.cErrorMessage = ''
-		
+
 		* Have the internal method to the work.
-		
-		return This.GetStatusForAllFilesInternal(toFiles)
-		
+
+		return This.GetStatusForAllFilesInternal(toFiles, toProjectItem)
+
 	ENDPROC
 
 	PROTECTED PROCEDURE getstatusforallfilesinternal		&& Gets the status for all files in the specified collection
@@ -8780,17 +8813,18 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 		* Purpose:			Gets the status for all files in the specified collection
 		* Author:			Doug Hennig
 		* Last Revision:	04/28/2017
-		* Parameters:		toFiles - a collection of ProjectItem objects to get the
+		* Parameters:		toFiles       - a collection of ProjectItem objects to get the
 		*						status for
+		*					toProjectItem - optional ProjectItem for the project file itself
 		* Returns:			.T. if it succeeded
 		* Environment in:	none
 		* Environment out:	the status of each ProjectItem object has been set
 		*==============================================================================
-		
+
 		* Abstract method.
-		
-		lparameters toFiles
-		
+
+		lparameters toFiles, toProjectItem
+
 	ENDPROC
 
 	PROCEDURE getstatusforfile		&& Gets the status for the specified file
