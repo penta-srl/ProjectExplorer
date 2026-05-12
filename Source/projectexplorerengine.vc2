@@ -848,12 +848,13 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 		* Execute the batch file.
 		
 		lcCommand = '"' + fullpath(lcBatFile) + '"'
+		This.LogCommand('GetStatusForAllFilesInternal', trim(lcText))
 		This.RunCommand(lcCommand)
 		erase (lcBatFile)
-		
+
 		* Pull the results into a cursor and set the status for each file. For VFP
 		* binary files, check the status of associated files too.
-		
+
 		if file(lcStatusFile)
 			lnSelect = select()
 			lcCursor = sys(2015)
@@ -861,7 +862,7 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 			append from (lcStatusFile) sdf
 			replace all FILE with fullpath(trim(FILE), lcPath)
 			index on upper(FILE) tag FILE
-		
+
 		* Go through each file in the collection and get its status.
 		
 			for each loFile in toFiles foxobject
@@ -951,7 +952,7 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 				endif llFound
 			next loFile
 
-		* If a project item was passed, set its status from the same cursor
+		* If a project item was provided, look it up in the already-open cursor
 		* instead of making a separate git call.
 
 			if vartype(toProjectItem) = 'O' and pemstatus(toProjectItem, 'Path', 5)
@@ -1017,13 +1018,14 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 		erase (lcStatusFile)
 		
 		* Execute the batch file.
-		
+
 		lcCommand = '"' + fullpath(lcBatFile) + '"'
-		This.RunCommand(lcCommand, .F., This.cRepositoryFolder)
+		This.LogCommand('GetStatusForFileInternal', trim(lcText))
+		This.RunCommand(lcCommand, .F., lcPath)
 		erase (lcBatFile)
-		
+
 		* Pull the results into a cursor and get the status for the file(s).
-		
+
 		if file(lcStatusFile)
 			lnSelect = select()
 			lcCursor = sys(2015)
@@ -1417,7 +1419,6 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 			laLines[1], ;
 			lnLines, ;
 			lnI, ;
-			lcCurrResponse, ;
 			llReturn, ;
 			lcFolder, ;
 			loAppRun, ;
@@ -1430,18 +1431,14 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 		lnPos = at('>', tcCommand)
 		if lnPos > 0
 			lcCommand = alltrim(left(tcCommand, lnPos - 1))
-			lcFolder  = iif(empty(tcFolder), This.cRepositoryFolder, tcFolder)
 			loCmd     = newobject('MSDOS', 'RunCommand.prg')
 			if loCmd.CreateMSDOSSession()
-				if not empty(lcFolder)
-					loCmd.RunCommand('cd /d "' + lcFolder + '"')
-				endif not empty(lcFolder)
 				loCmd.RunCommand(lcCommand)
 				lcResponse = ''
-				lcPrompt   = iif(empty(lcFolder), sys(5) + curdir(), lcFolder)
-				lcPrompt   = iif(right(lcPrompt, 1) = '\' and len(lcPrompt) > 3, ;
-					left(lcPrompt, len(lcPrompt) - 1), lcPrompt)
-				lcPrompt   = lcPrompt + '>'
+				lcPrompt   = curdir()
+				lcPrompt   = iif(len(lcPrompt) > 1, left(lcPrompt, len(lcPrompt) - 1), ;
+					lcPrompt)
+				lcPrompt   = sys(5) + lcPrompt + '>'
 				do while occurs(lower(lcPrompt), lower(lcResponse)) < 2
 					&& wait until the command prompt appears twice: once for the
 					&& initial prompt and then again after the command has finished
@@ -1611,7 +1608,156 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 		endif This.lUseTortoise ...
 		llReturn = This.RunCommand(lcCommand)
 		return llReturn
-		
+
+	ENDPROC
+
+	PROTECTED PROCEDURE getstatusforallprojectsinternal		&& Single git status shared across all projects in the solution
+		*==============================================================================
+		* Method:			GetStatusForAllProjectsInternal
+		* Status:			Protected
+		* Purpose:			Runs ONE git status --porcelain from the repository root and
+		*						distributes the results to all projects' items. Returns .F.
+		*						if projects do not share the same repository folder, so the
+		*						caller falls back to per-project GetStatusForAllFiles calls.
+		* Author:			Doug Hennig
+		* Last Revision:	05/12/2026
+		* Parameters:		toProjects - a collection of ProjectEngine objects
+		* Returns:			.T. if succeeded, .F. to signal fallback
+		* Environment in:	This.cRepositoryFolder, This.oConverter
+		* Environment out:	status of every ProjectItem and project file set
+		*==============================================================================
+
+		lparameters toProjects
+		local loProject, ;
+			lcRepoFolder, ;
+			lcPath, ;
+			lcStatusFile, ;
+			lcText, ;
+			lcBatFile, ;
+			lcCommand, ;
+			lnSelect, ;
+			lcCursor, ;
+			loFile, ;
+			lcFile, ;
+			lcOther, ;
+			llBinary, ;
+			llFound, ;
+			lcStatus
+
+		* All projects must share the same repository folder for one-call approach.
+
+		lcRepoFolder = ''
+		for each loProject in toProjects foxobject
+			do case
+				case empty(lcRepoFolder)
+					lcRepoFolder = upper(loProject.oVersionControl.cRepositoryFolder)
+				case upper(loProject.oVersionControl.cRepositoryFolder) <> lcRepoFolder
+					return .F.
+			endcase
+		next loProject
+		if empty(lcRepoFolder)
+			return .F.
+		endif empty(lcRepoFolder)
+
+		* Run a single git status --porcelain from the common repository root.
+
+		lcPath       = addbs(This.cRepositoryFolder)
+		lcStatusFile = lcPath + 'status.txt'
+		text to lcText noshow textmerge
+		git status --porcelain > "<<lcStatusFile>>"
+		endtext
+		lcBatFile = lcPath + 'GitStatus.bat'
+		strtofile(lcText, lcBatFile)
+		erase (lcStatusFile)
+		lcCommand = '"' + fullpath(lcBatFile) + '"'
+		This.LogCommand('GetStatusForAllProjectsInternal', trim(lcText))
+		This.RunCommand(lcCommand)
+		erase (lcBatFile)
+
+		if not file(lcStatusFile)
+			return .T.
+		endif not file(lcStatusFile)
+
+		lnSelect = select()
+		lcCursor = sys(2015)
+		create cursor (lcCursor) (STATUS C(2), FILE C(240))
+		append from (lcStatusFile) sdf
+		replace all FILE with fullpath(trim(FILE), lcPath)
+		index on upper(FILE) tag FILE
+
+		* Distribute statuses to all projects' items and project files.
+
+		for each loProject in toProjects foxobject
+
+		*   Set status for each item in this project.
+
+			for each loFile in loProject.oProjectItems foxobject
+				lcFile   = loFile.Path
+				lcOther  = GetVFPBinaryOtherFile(lcFile)
+				llBinary = not empty(lcOther) or IsVFPBinaryFile(lcFile)
+				llFound  = .F.
+				do case
+					case llBinary
+						seek padr(upper(lcFile), 240)
+						llFound = found()
+						if llFound
+							lcStatus = This.GetStatusCode(STATUS)
+						else
+							lcStatus = ccVC_STATUS_CLEAN
+						endif llFound
+						if not empty(lcOther)
+							seek padr(upper(lcOther), 240)
+							if found() and lcStatus = ccVC_STATUS_CLEAN
+								lcStatus = This.GetStatusCode(STATUS)
+								llFound  = .T.
+							endif found() ...
+							lcOther = GetVFPBinaryOtherFile(lcFile, .T.)
+							if not empty(lcOther)
+								seek padr(upper(lcOther), 240)
+								if found() and lcStatus = ccVC_STATUS_CLEAN
+									lcStatus = This.GetStatusCode(STATUS)
+									llFound  = .T.
+								endif found() ...
+							endif not empty(lcOther)
+						endif not empty(lcOther)
+						if inlist(lcStatus, ccVC_STATUS_CLEAN, ccVC_STATUS_UNTRACKED) and ;
+							This.nIncludeInVersionControl > 1
+							lcFile = This.oConverter.GetTextFileName(lcFile)
+							if not empty(lcFile)
+								seek padr(upper(lcFile), 240)
+								llFound = found()
+								if llFound
+									lcStatus = This.GetStatusCode(STATUS)
+								endif llFound
+							endif not empty(lcFile)
+						endif inlist(lcStatus, ccVC_STATUS_CLEAN ...
+					otherwise
+						seek padr(upper(lcFile), 240)
+						llFound  = found()
+						lcStatus = This.GetStatusCode(STATUS)
+				endcase
+				if llFound
+					loFile.VersionControlStatus = lcStatus
+				else
+					loFile.VersionControlStatus = ccVC_STATUS_CLEAN
+				endif llFound
+			next loFile
+
+		*   Set status for the project file itself.
+
+			seek padr(upper(loProject.oProjectItem.Path), 240)
+			if found()
+				loProject.oProjectItem.VersionControlStatus = This.GetStatusCode(STATUS)
+			else
+				loProject.oProjectItem.VersionControlStatus = ccVC_STATUS_CLEAN
+			endif found()
+		next loProject
+
+		use
+		select (lnSelect)
+		erase (lcStatusFile)
+		return .T.
+
 	ENDPROC
 
 ENDDEFINE
@@ -1973,7 +2119,7 @@ DEFINE CLASS mercurialoperations AS versioncontroloperations OF "projectexplorer
 				endif llFound
 			next loFile
 
-		* If a project item was passed, set its status from the same cursor
+		* If a project item was provided, look it up in the already-open cursor
 		* instead of making a separate hg call.
 
 			if vartype(toProjectItem) = 'O' and pemstatus(toProjectItem, 'Path', 5)
@@ -3997,7 +4143,7 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		* Get the version control status for all files; note that we have to close the
 		* project if we're not storing text equivalents only because its being open
 		* causes databases to be open which prevents us from getting the status.
-		* Pass the project item so its status is resolved in the same VCS call,
+		* Pass the project item itself so its status is set in the same git call,
 		* then reopen the project (previously done inside GetProjectStatus).
 
 			if vartype(This.oVersionControl) = 'O'
@@ -5170,6 +5316,7 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 			<memberdata name="lhaveversioncontrol" display="lHaveVersionControl"/>
 			<memberdata name="lhaveversioncontrol_access" display="lHaveVersionControl_Access"/>
 			<memberdata name="getstatusforallfiles" display="GetStatusForAllFiles"/>
+			<memberdata name="getstatusforallprojects" display="GetStatusForAllProjects"/>
 			<memberdata name="closeprojects" display="CloseProjects"/>
 			<memberdata name="openprojects" display="OpenProjects"/>
 			<memberdata name="opensolution" display="OpenSolution"/>
@@ -5972,7 +6119,7 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 		
 			llReturn = This.oVersionControl.CommitFiles(tcMessage, @laFiles)
 		
-		* Refresh status for all committed items with a single batch call
+		* Refresh the status for all committed items with a single batch call
 		* instead of one GetStatusForFile call per item.
 
 			if llReturn
@@ -6058,12 +6205,14 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 			endif This.nIncludeInVersionControl <> 2
 		
 		* Get the status for all files in all projects and for the projects themselves.
-		* Pass the project item as second parameter so its status is resolved in the
-		* same VCS call, saving one GetStatusForFile call per project.
+		* Try the single-call optimization first (one git status for the whole solution).
+		* If projects use different repositories it falls back to per-project calls.
 
-			for each loProject in This.oProjects foxobject
-				This.oVersionControl.GetStatusForAllFiles(loProject.oProjectItems, loProject.oProjectItem)
-			next loProject
+			if not This.oVersionControl.GetStatusForAllProjects(This.oProjects)
+				for each loProject in This.oProjects foxobject
+					This.oVersionControl.GetStatusForAllFiles(loProject.oProjectItems, loProject.oProjectItem)
+				next loProject
+			endif not This.oVersionControl.GetStatusForAllProjects(This.oProjects)
 		
 		* Reopen the projects.
 		
@@ -8130,6 +8279,9 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 			<memberdata name="commitfilesinternal" display="CommitFilesInternal"/>
 			<memberdata name="getstatusforfileinternal" display="GetStatusForFileInternal"/>
 			<memberdata name="getstatusforallfilesinternal" display="GetStatusForAllFilesInternal"/>
+			<memberdata name="getstatusforallprojects" display="GetStatusForAllProjects"/>
+			<memberdata name="getstatusforallprojectsinternal" display="GetStatusForAllProjectsInternal"/>
+			<memberdata name="logcommand" display="LogCommand"/>
 			<memberdata name="oaddins" display="oAddins"/>
 			<memberdata name="repositorybrowserinternal" display="RepositoryBrowserInternal"/>
 			<memberdata name="revisionhistoryinternal" display="RevisionHistoryInternal"/>
@@ -8786,16 +8938,21 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 		* Purpose:			Gets the status for all files in the specified collection
 		* Author:			Doug Hennig
 		* Last Revision:	04/28/2017
-		* Parameters:		toFiles       - a collection of ProjectItem objects to get the
+		* Parameters:		toFiles        - a collection of ProjectItem objects to get the
 		*						status for
-		*					toProjectItem - optional ProjectItem for the project file itself;
-		*						its status is set from the same cursor without an extra VCS call
+		*					toProjectItem  - optional ProjectItem for the project file itself
 		* Returns:			.T. if it succeeded
 		* Environment in:	none
 		* Environment out:	the status of each ProjectItem object has been set
 		*==============================================================================
 
 		lparameters toFiles, toProjectItem
+
+		* Skip if status checks are deferred (bulk load in progress).
+
+		if type('glPEDeferVCStatus') = 'L' and glPEDeferVCStatus
+			return .T.
+		endif type('glPEDeferVCStatus') = 'L' ...
 
 		* Ensure we have a valid collection.
 
@@ -8818,9 +8975,9 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 		* Purpose:			Gets the status for all files in the specified collection
 		* Author:			Doug Hennig
 		* Last Revision:	04/28/2017
-		* Parameters:		toFiles       - a collection of ProjectItem objects to get the
+		* Parameters:		toFiles        - a collection of ProjectItem objects to get the
 		*						status for
-		*					toProjectItem - optional ProjectItem for the project file itself
+		*					toProjectItem  - optional ProjectItem for the project file itself
 		* Returns:			.T. if it succeeded
 		* Environment in:	none
 		* Environment out:	the status of each ProjectItem object has been set
@@ -9937,9 +10094,75 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 		*==============================================================================
 		
 		* Abstract method.
-		
+
 		lparameters tcFile
-		
+
+	ENDPROC
+
+	PROCEDURE getstatusforallprojects		&& Gets the status for all files in all projects with a single VCS call
+		*==============================================================================
+		* Method:			GetStatusForAllProjects
+		* Status:			Public
+		* Purpose:			Gets the version control status for all files in all projects
+		*						using a single VCS call. Returns .F. if not supported or
+		*						if projects use different repositories (caller falls back).
+		* Author:			Doug Hennig
+		* Last Revision:	05/12/2026
+		* Parameters:		toProjects - a collection of ProjectEngine objects
+		* Returns:			.T. if succeeded, .F. to signal caller to fall back
+		* Environment in:	none
+		* Environment out:	status of all project items has been set
+		*==============================================================================
+
+		lparameters toProjects
+
+		if vartype(toProjects) <> 'O' or not pemstatus(toProjects, 'Count', 5)
+			This.cErrorMessage = 'Invalid collection specified.'
+			return .F.
+		endif vartype(toProjects) <> 'O' ...
+		This.cErrorMessage = ''
+		return This.GetStatusForAllProjectsInternal(toProjects)
+
+	ENDPROC
+
+	PROTECTED PROCEDURE getstatusforallprojectsinternal		&& Gets the status for all projects with a single VCS call (abstract)
+		*==============================================================================
+		* Method:			GetStatusForAllProjectsInternal
+		* Status:			Protected
+		* Purpose:			Abstract — subclasses override to implement the single-call
+		*						optimization. Return .F. to signal fallback.
+		* Author:			Doug Hennig
+		* Last Revision:	05/12/2026
+		* Parameters:		toProjects - a collection of ProjectEngine objects
+		* Returns:			.F. (base class always falls back)
+		*==============================================================================
+
+		* Base class signals fallback so per-project calls are used.
+
+		lparameters toProjects
+		return .F.
+
+	ENDPROC
+
+	PROTECTED PROCEDURE logcommand		&& Logs a git/VCS command to _screen.cPEGitLog if set
+		*==============================================================================
+		* Method:			LogCommand
+		* Status:			Protected
+		* Purpose:			Appends a timestamped log line to the file specified by the
+		*						public variable _screen.cPEGitLog. Set that variable before
+		*						starting the app to enable logging; leave it empty to disable.
+		* Parameters:		tcMethod  - name of the calling method
+		*					tcCommand - the command string being executed
+		* Returns:			nothing
+		*==============================================================================
+
+		lparameters tcMethod, tcCommand
+		local lcLine
+		if type('glPEGitLog') = 'L' and glPEGitLog
+			lcLine = transform(datetime()) + ' | ' + tcMethod + ' | ' + tcCommand + chr(13) + chr(10)
+			strtofile(lcLine, addbs(sys(2023)) + 'pe_git.log', .T.)
+		endif type('glPEGitLog') = 'L' and glPEGitLog
+
 	ENDPROC
 
 ENDDEFINE

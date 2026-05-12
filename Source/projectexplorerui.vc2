@@ -8862,20 +8862,37 @@ DEFINE CLASS projectexplorerformtreeviewcontroller AS projectexplorertreeviewcon
 		llDesc  = loForm.lSortTreeViewDescending
 		lnIDLen = len(evaluate(toTreeViewContainer.cCursorAlias + '.ID'))
 		
-		* Process each project in the solution.
-		
+		* Pass 1: load all project files with deferred VC status, then do one
+		* batch git call so statuses are correct before building the tree cursor.
+
+		local llDefer
+		llDefer = loForm.oSolution.lHaveVersionControl
+		if llDefer
+			public glPEDeferVCStatus
+			glPEDeferVCStatus = .T.
+		endif llDefer
 		for each loProject in loForm.oSolution.oProjects foxobject
 			if vartype(loProject.oProjectItems) <> 'O' or loProject.oProjectItems.Count = 0
 				llOK = loProject.GetFilesFromProject()
 				if not llOK
+					glPEDeferVCStatus = .F.
 					loForm.ShowErrorMessage(loProject.cErrorMessage)
 					return
 				endif not llOK
 			endif vartype(loProject.oProjectItems) <> 'O' ...
-		
+		next loProject
+		if llDefer
+			glPEDeferVCStatus = .F.
+			loForm.oSolution.GetStatusForAllFiles()
+		endif llDefer
+
+		* Pass 2: build the tree cursor with statuses already populated.
+
+		for each loProject in loForm.oSolution.oProjects foxobject
+
 		* Insert a record for the project itself. Page 9 indicates that we aren't
 		* using the pageframe for displaying properties.
-		
+
 			lcProjectID = loProject.oProjectItem.Key
 			lcImage     = loForm.GetImageForItem(loProject.oProjectItem)
 			insert into (toTreeViewContainer.cCursorAlias) ;
@@ -8898,9 +8915,9 @@ DEFINE CLASS projectexplorerformtreeviewcontroller AS projectexplorertreeviewcon
 					9, ;
 					loProject.cProject, ;
 					iif(llDesc, 1000000 - reccount(), reccount()))
-		
+
 		* Add headers for the tag filter (not for database-related headers).
-		
+
 			for lnI = 1 to alen(loForm.aHeaders, 1)
 				if loForm.cFilterTags + ',' $ loForm.aHeaders[lnI, 6] + ',' and ;
 					not loForm.aHeaders[lnI, 5] and ;
@@ -8930,16 +8947,16 @@ DEFINE CLASS projectexplorerformtreeviewcontroller AS projectexplorertreeviewcon
 						lcProjectID
 				endif loForm.cFilterTags ...
 			next lnI
-		
+
 		* Insert records for each item in the project into the cursor.
-		
+
 			loItems = loProject.oProjectItems
 			for each loItem in loItems foxobject
 				This.AddRecordToTreeViewCursor(toTreeViewContainer, loItem, loProject)
 			next loItem
-		
+
 		* Now remove unused headers if we're supposed to.
-		
+
 			if loForm.lRemoveUnusedHeaders
 				lnSelect = select()
 				select (toTreeViewContainer.cCursorAlias)
@@ -8956,7 +8973,7 @@ DEFINE CLASS projectexplorerformtreeviewcontroller AS projectexplorertreeviewcon
 				select (lnSelect)
 			endif loForm.lRemoveUnusedHeaders
 		next loProject
-		
+
 		* Index the cursor on how we're supposed to sort the TreeView. Note that we
 		* have to strip out the exclude symbol from the name so it sorts properly.
 		
