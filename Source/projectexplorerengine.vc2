@@ -517,6 +517,7 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 
 	#INCLUDE "projectexplorer.h"
 	*<DefinedPropArrayMethod>
+		*m: getcurrentbranch		&& Returns the current branch name
 		*m: getstatuscode		&& Gets the status code
 		*m: runcommand		&& Executes the specified command
 		*p: cresponse		&& The response from some commands
@@ -535,6 +536,7 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 			<memberdata name="setfilestatus" display="SetFileStatus"/>
 			<memberdata name="runcommand" display="RunCommand"/>
 			<memberdata name="getstatuscode" display="GetStatusCode"/>
+			<memberdata name="getcurrentbranch" display="GetCurrentBranch"/>
 			<memberdata name="lusetortoise" display="lUseTortoise"/>
 			<memberdata name="cresponse" display="cResponse"/>
 			<memberdata name="csourcetreepath" display="cSourceTreePath"/>
@@ -1154,6 +1156,43 @@ DEFINE CLASS gitoperations AS versioncontroloperations OF "projectexplorerengine
 		return lcFolder
 		
 	ENDPROC
+
+	FUNCTION getcurrentbranch		&& Returns the current branch name
+		*==============================================================================
+		* Method:			GetCurrentBranch
+		* Status:			Public
+		* Purpose:			Returns the name of the current branch
+		* Parameters:		tcFolder - a folder inside the repository
+		* Returns:			the branch name, or '' if not a Git repository
+		*==============================================================================
+
+		lparameters tcFolder
+		local lcFolder, ;
+			lcBranchFile, ;
+			lcText, ;
+			lcBatFile, ;
+			lcCommand, ;
+			lcBranch
+
+		lcFolder     = addbs(tcFolder)
+		lcBranchFile = lcFolder + 'git_branch.txt'
+		text to lcText noshow textmerge
+git rev-parse --abbrev-ref HEAD > "<<lcBranchFile>>"
+		endtext
+		lcBatFile = lcFolder + 'GitBranch.bat'
+		strtofile(lcText, lcBatFile)
+		erase (lcBranchFile)
+		lcCommand = '"' + fullpath(lcBatFile) + '"'
+		This.RunCommand(lcCommand, .F., lcFolder)
+		erase (lcBatFile)
+		lcBranch = ''
+		if file(lcBranchFile)
+			lcBranch = alltrim(chrtran(filetostr(lcBranchFile), ccCRLF, ''))
+			erase (lcBranchFile)
+		endif file(lcBranchFile)
+		return iif(lcBranch == 'HEAD', '', lcBranch)
+
+	ENDFUNC
 
 	PROCEDURE pushtoremoteinternal
 		*==============================================================================

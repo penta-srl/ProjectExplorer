@@ -4249,7 +4249,8 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 			case not empty(loSolution.cErrorMessage)
 				This.ShowErrorMessage(loSolution.cErrorMessage)
 		endcase
-		
+		This.UpdateBranchPanel()
+
 	ENDPROC
 
 	PROCEDURE convertfile		&& Converts the selected file from binary to text or vice versa
@@ -6350,8 +6351,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		endcase
 		lcFile = This.cSolutionFile
 		if llOK
-			lcCaption    = GetProperFileCase(justfname(lcFile), .T.)
-			This.Caption = 'Project Explorer - ' + lcCaption
+			This.UpdateBranchPanel()
 		endif llOK
 		
 		* Set the registry key to use for this project as the name and path for the
@@ -6417,6 +6417,45 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		
 	ENDPROC
 
+	PROCEDURE updatebranchpanel		&& Updates the Git branch name in the form caption
+		*==============================================================================
+		* Method:			UpdateBranchPanel
+		* Status:			Public
+		* Purpose:			Appends the current Git branch name to the form caption.
+		*					Format: "Project Explorer - <file> [<branch>]"
+		*					When not in a Git repo the caption shows no branch suffix.
+		* Parameters:		none
+		* Returns:			nothing
+		*==============================================================================
+
+		local lcBranch, ;
+			lcCaption
+		with This
+
+		* Determine the branch name (requires an open Git solution).
+
+			lcBranch = ''
+			if vartype(.oSolution) = 'O' and .oSolution.lHaveVersionControl and ;
+				vartype(.oSolution.oVersionControl) = 'O' and ;
+				lower(.oSolution.oVersionControl.Class) = 'gitoperations' and ;
+				not empty(.cSolutionFile)
+				lcBranch = .oSolution.oVersionControl.GetCurrentBranch(justpath(.cSolutionFile))
+			endif vartype(.oSolution) = 'O' ...
+
+		* Rebuild the caption: "Project Explorer - <file> [<branch>]"
+
+			lcCaption = 'Project Explorer'
+			if not empty(.cSolutionFile)
+				lcCaption = lcCaption + ' - ' + GetProperFileCase(justfname(.cSolutionFile), .T.)
+			endif not empty(.cSolutionFile)
+			if not empty(lcBranch)
+				lcCaption = lcCaption + ' [' + lcBranch + ']'
+			endif not empty(lcBranch)
+			.Caption = lcCaption
+		endwith
+
+	ENDPROC
+
 	PROCEDURE refreshsolution		&& Refreshes all projects in the solution
 		*==============================================================================
 		* Method:			RefreshSolution
@@ -6437,7 +6476,8 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		next loProject
 		This.FlagTreeViewsForReload()
 		This.LoadSolution(.T., .T.)
-		
+		This.UpdateBranchPanel()
+
 	ENDPROC
 
 	PROCEDURE releasemembers
@@ -6783,9 +6823,10 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		endif not This.oSolution.lHaveVersionControl
 		
 		* Display the Repository Browser.
-		
+
 		This.oSolution.oVersionControl.RepositoryBrowser()
-		
+		This.UpdateBranchPanel()
+
 	ENDPROC
 
 	PROCEDURE resetsortandfilter		&& Resets the sort and filter to default
@@ -7694,8 +7735,9 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		else
 			This.ShowErrorMessage(This.oSolution.oVersionControl.cErrorMessage)
 		endif llReturn
+		This.UpdateBranchPanel()
 		return llReturn
-		
+
 	ENDPROC
 
 	PROCEDURE updatenode		&& Updates the selected node in the TreeView
