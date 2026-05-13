@@ -4106,14 +4106,16 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		* Purpose:			Fills a collection of files in the current project
 		* Author:			Doug Hennig
 		* Last revision:	02/13/2019
-		* Parameters:		none
+		* Parameters:		tlNoVersionControlStatus - .T. to skip the VC status call
+		*						(caller will fetch status for all projects at once)
 		* Returns:			.T. if everything succeeded
 		* Environment in:	This.cProject contains the name and path of the PJX file
 		*					see This.GetMetaDataForItem for assumptions
 		* Environment out:	This.oProjectItems contains one ProjectItem object for
 		*						every file in the project
 		*==============================================================================
-		
+
+		lparameters tlNoVersionControlStatus
 		local lcProject, ;
 			loFiles, ;
 			lnSelect, ;
@@ -4186,7 +4188,7 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		* Pass the project item itself so its status is set in the same git call,
 		* then reopen the project (previously done inside GetProjectStatus).
 
-			if vartype(This.oVersionControl) = 'O'
+			if vartype(This.oVersionControl) = 'O' and not tlNoVersionControlStatus
 				if This.oVersionControl.nIncludeInVersionControl <> 2
 					This.CloseProject()
 				endif This.oVersionControl.nIncludeInVersionControl <> 2
@@ -4194,7 +4196,7 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 				if This.oVersionControl.nIncludeInVersionControl <> 2
 					This.OpenProject()
 				endif This.oVersionControl.nIncludeInVersionControl <> 2
-			endif vartype(This.oVersionControl) = 'O'
+			endif vartype(This.oVersionControl) = 'O' ...
 		endif llReturn
 		select (lnSelect)
 		return llReturn

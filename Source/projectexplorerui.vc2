@@ -6472,7 +6472,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		
 		local loProject
 		for each loProject in This.oSolution.oProjects foxobject
-			loProject.GetFilesFromProject()
+			loProject.GetFilesFromProject(.T.)
 		next loProject
 		This.FlagTreeViewsForReload()
 		This.LoadSolution(.T., .T.)
