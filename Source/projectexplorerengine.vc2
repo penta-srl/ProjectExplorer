@@ -3186,6 +3186,7 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 			<memberdata name="savesettings" display="SaveSettings"/>
 			<memberdata name="oprojectitem" display="oProjectItem"/>
 			<memberdata name="getprojectstatus" display="GetProjectStatus"/>
+			<memberdata name="computeprojectaggregatestatus" display="ComputeProjectAggregateStatus"/>
 			<memberdata name="cmetadatatable" display="cMetaDataTable"/>
 			<memberdata name="cleanupproject" display="CleanupProject"/>
 			<memberdata name="cmetadataalias" display="cMetaDataAlias"/>
@@ -4323,10 +4324,10 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		*==============================================================================
 		
 		if vartype(This.oVersionControl) = 'O'
-		
+
 		* If we're not storing text equivalents only, close the project so we can get
 		* its status (we'll reopen it after getting the status).
-		
+
 			if This.oVersionControl.nIncludeInVersionControl <> 2
 				This.CloseProject()
 			endif This.oVersionControl.nIncludeInVersionControl <> 2
@@ -4334,8 +4335,64 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 			if This.oVersionControl.nIncludeInVersionControl <> 2
 				This.OpenProject()
 			endif This.oVersionControl.nIncludeInVersionControl <> 2
+			This.ComputeProjectAggregateStatus()
 		endif vartype(This.oVersionControl) = 'O'
-		
+
+	ENDPROC
+
+	PROCEDURE computeprojectaggregatestatus		&& Marks project node as children-modified when children are dirty but project file is clean
+		*==============================================================================
+		* Method:			ComputeProjectAggregateStatus
+		* Status:			Public
+		* Purpose:			If the project file itself is clean but one or more child
+		*					files have a non-clean/non-ignored status, sets the project
+		*					item's VersionControlStatus to ccVC_STATUS_CHILDREN_MODIFIED.
+		*					This allows the collapsed project node in the tree to show
+		*					a distinct icon warning the developer that changes exist
+		*					inside the project.
+		* Author:			Nicola Marangon
+		* Last Revision:	05/13/2026
+		* Parameters:		none
+		* Returns:			nothing
+		* Environment in:	This.oProjectItem.VersionControlStatus must already be set
+		*						This.oProjectItems must be a populated collection
+		* Environment out:	This.oProjectItem.VersionControlStatus may be changed to
+		*						ccVC_STATUS_CHILDREN_MODIFIED
+		*==============================================================================
+
+		local loItem, lcLogPrefix, lcLogFile, llLog
+		lcLogPrefix = transform(datetime()) + ' | ComputeProjectAggregateStatus | ' + This.oProjectItem.Path + ' | '
+		lcLogFile   = addbs(sys(2023)) + 'pe_git.log'
+		llLog       = type('glPEGitLog') = 'L' and glPEGitLog
+		if llLog
+			strtofile(lcLogPrefix + 'project status=[' + This.oProjectItem.VersionControlStatus + ']' + ;
+				' items=' + transform(This.oProjectItems.Count) + chr(13) + chr(10), lcLogFile, .T.)
+		endif llLog
+		if This.oProjectItem.VersionControlStatus = ccVC_STATUS_CHILDREN_MODIFIED
+			This.oProjectItem.VersionControlStatus = ccVC_STATUS_CLEAN
+		endif
+		if This.oProjectItem.VersionControlStatus = ccVC_STATUS_CLEAN and ;
+			vartype(This.oProjectItems) = 'O'
+			for each loItem in This.oProjectItems foxobject
+				if llLog
+					strtofile(lcLogPrefix + '  item: IsFile=' + transform(loItem.IsFile) + ;
+						' status=[' + loItem.VersionControlStatus + ']' + ;
+						' path=' + loItem.Path + chr(13) + chr(10), lcLogFile, .T.)
+				endif llLog
+				if loItem.IsFile and ;
+					inlist(loItem.VersionControlStatus, ccVC_STATUS_MODIFIED, ccVC_STATUS_ADDED, ;
+					ccVC_STATUS_REMOVED, ccVC_STATUS_UNTRACKED, ccVC_STATUS_UNMERGED, ccGIT_STATUS_REMOVED)
+					This.oProjectItem.VersionControlStatus = ccVC_STATUS_CHILDREN_MODIFIED
+					if llLog
+						strtofile(lcLogPrefix + 'set CHILDREN_MODIFIED (dirty child: ' + ;
+							loItem.Path + ' status=[' + loItem.VersionControlStatus + '])' + ;
+							chr(13) + chr(10), lcLogFile, .T.)
+					endif llLog
+					exit
+				endif
+			next loItem
+		endif
+
 	ENDPROC
 
 	PROCEDURE gettableitems		&& Adds ProjectItem objects for the fields and indexes in the specified free table to the collection
@@ -5857,6 +5914,7 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 					exit
 				case This.lHaveVersionControl
 					loProject.oProjectItem.VersionControlStatus = This.GetStatusForFile(loProject.cProject)
+					loProject.ComputeProjectAggregateStatus()
 			endcase
 		next loProject
 		
@@ -6213,7 +6271,14 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 					This.oVersionControl.GetStatusForAllFiles(loProject.oProjectItems, loProject.oProjectItem)
 				next loProject
 			endif not This.oVersionControl.GetStatusForAllProjects(This.oProjects)
-		
+
+		* Compute aggregate status: if project file is clean but children are dirty,
+		* mark the project node with ccVC_STATUS_CHILDREN_MODIFIED.
+
+			for each loProject in This.oProjects foxobject
+				loProject.ComputeProjectAggregateStatus()
+			next loProject
+
 		* Reopen the projects.
 		
 			if llClosed

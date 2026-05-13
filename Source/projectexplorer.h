@@ -32,6 +32,8 @@
 #define ccVC_STATUS_REMOVED				'R'
 #define ccVC_STATUS_UNMERGED			'U'
 #define ccGIT_STATUS_REMOVED			'D'
+#define ccVC_STATUS_CHILDREN_MODIFIED	'X'
+	&& project file is clean but one or more child files have a non-clean status
 
 * Project item types (most are in FOXPRO.H as FILETYPE_* constants).
 

@@ -5150,6 +5150,12 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 				lcImage = 'removed'
 			case toItem.VersionControlStatus = ccVC_STATUS_UNMERGED
 				lcImage = 'unmerged'
+			case toItem.VersionControlStatus = ccVC_STATUS_CHILDREN_MODIFIED
+				lcImage = 'children_modified'
+				if type('glPEGitLog') = 'L' and glPEGitLog
+					strtofile(transform(datetime()) + ' | GetImageForItem | children_modified for: ' + ;
+						toItem.Path + chr(13) + chr(10), addbs(sys(2023)) + 'pe_git.log', .T.)
+				endif type('glPEGitLog') = 'L' and glPEGitLog
 		endcase
 		return lcImage
 		
@@ -5251,7 +5257,51 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 				endif not upper(lcTree) == upper(This.oCurrentTreeViewContainer.Name)
 			next lcTree
 		endif ',' $ toItem.Tags ...
-		
+
+		* When a child file's status changes, re-evaluate the parent project node so
+		* the collapsed project icon reflects whether any children are dirty.
+		if toItem.IsFile and not tlNoStatus and vartype(This.oSolution) = 'O' and ;
+			vartype(This.oSolution.oProjects) = 'O'
+			local loProject, llFoundInProject, lcGISLog, lcGISPrefix
+			lcGISLog    = addbs(sys(2023)) + 'pe_git.log'
+			lcGISPrefix = transform(datetime()) + ' | GetItemStatus-prj | ' + toItem.Path + ' | '
+			if type('glPEGitLog') = 'L' and glPEGitLog
+				strtofile(lcGISPrefix + 'IsFile=' + transform(toItem.IsFile) + ;
+					' status=[' + toItem.VersionControlStatus + ']' + ;
+					' key=[' + toItem.Key + ']' + chr(13) + chr(10), lcGISLog, .T.)
+			endif type('glPEGitLog') = 'L' and glPEGitLog
+			for each loProject in This.oSolution.oProjects foxobject
+				if vartype(loProject.oProjectItems) = 'O'
+					llFoundInProject = .F.
+					local loCollectionItem
+					loCollectionItem = loProject.oProjectItems.Item(toItem.Key)
+					llFoundInProject = vartype(loCollectionItem) = 'O'
+					if type('glPEGitLog') = 'L' and glPEGitLog
+						strtofile(lcGISPrefix + 'project=' + loProject.oProjectItem.Path + ;
+							' found=' + transform(llFoundInProject) + chr(13) + chr(10), lcGISLog, .T.)
+					endif type('glPEGitLog') = 'L' and glPEGitLog
+					if llFoundInProject
+						if type('glPEGitLog') = 'L' and glPEGitLog
+							strtofile(lcGISPrefix + 'collection item status=[' + loCollectionItem.VersionControlStatus + ']' + ;
+								' sameRef=' + transform(loCollectionItem == toItem) + ;
+								' toItem status=[' + toItem.VersionControlStatus + ']' + ;
+								chr(13) + chr(10), lcGISLog, .T.)
+						endif type('glPEGitLog') = 'L' and glPEGitLog
+						loCollectionItem.VersionControlStatus = toItem.VersionControlStatus
+						loProject.ComputeProjectAggregateStatus()
+						if type('glPEGitLog') = 'L' and glPEGitLog
+							strtofile(lcGISPrefix + 'after ComputeProjectAggregateStatus prj status=[' + ;
+								loProject.oProjectItem.VersionControlStatus + ']' + ;
+								' IsFile=' + transform(loProject.oProjectItem.IsFile) + ;
+								chr(13) + chr(10), lcGISLog, .T.)
+						endif type('glPEGitLog') = 'L' and glPEGitLog
+						This.GetItemStatus(loProject.oProjectItem, .T.)
+						exit
+					endif
+				endif
+			next loProject
+		endif toItem.IsFile ...
+
 	ENDPROC
 
 	PROTECTED PROCEDURE getnodeforitem		&& Gets the TreeView node for the specified item
@@ -6912,10 +6962,27 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		endif not This.oSolution.lHaveVersionControl ...
 		
 		* Revert the file and update its status.
-		
+
 		loItem.VersionControlStatus = This.oSolution.RevertFile(loItem.Path)
 		This.GetItemStatus(loItem, .T.)
-		
+
+		* Update the parent project's aggregate status if this is a child file.
+
+		if not llProject and loItem.IsFile and vartype(This.oSolution) = 'O' and vartype(This.oSolution.oProjects) = 'O'
+			local loProject, loCollItem
+			for each loProject in This.oSolution.oProjects foxobject
+				if vartype(loProject.oProjectItems) = 'O'
+					loCollItem = loProject.oProjectItems.Item(loItem.Key)
+					if vartype(loCollItem) = 'O'
+						loCollItem.VersionControlStatus = loItem.VersionControlStatus
+						loProject.ComputeProjectAggregateStatus()
+						This.GetItemStatus(loProject.oProjectItem, .T.)
+						exit
+					endif
+				endif
+			next loProject
+		endif not llProject ...
+
 		* If this item has child items or is the project itself, we need to reload it
 		* and reload the TreeView because child items may be added or removed.
 		
@@ -9282,6 +9349,19 @@ DEFINE CLASS projectexplorerformtreeviewcontroller AS projectexplorertreeviewcon
 				loadpicture(lcPath + 'projectexplorerexcluded.ico'))
 			.ListImages.Add(lnImage + 25, 'unmerged', ;
 				loadpicture(lcPath + 'projectexplorerunmerged.ico'))
+			local lcIconPath, lcLogLine
+			lcIconPath = lcPath + 'projectexplorerchildrenmodified.ico'
+			try
+				.ListImages.Add(lnImage + 26, 'children_modified', loadpicture(lcIconPath))
+				lcLogLine = 'LoadImages | children_modified icon loaded OK: ' + lcIconPath
+			catch to loEx
+				lcLogLine = 'LoadImages | ERROR loading children_modified icon: ' + lcIconPath + ;
+					' | ' + loEx.Message
+			endtry
+			if type('glPEGitLog') = 'L' and glPEGitLog
+				strtofile(transform(datetime()) + ' | ' + lcLogLine + chr(13) + chr(10), ;
+					addbs(sys(2023)) + 'pe_git.log', .T.)
+			endif type('glPEGitLog') = 'L' and glPEGitLog
 		endwith
 		
 	ENDPROC
