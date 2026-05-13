@@ -7004,6 +7004,11 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		
 		* Revert the file and update its status.
 
+		if not This.YesNo('Revert "' + loItem.Path + '"?' + ccCRLF + ccCRLF + ;
+			'All unsaved changes will be permanently lost.')
+			return
+		endif
+
 		loItem.VersionControlStatus = This.oSolution.RevertFile(loItem.Path)
 		This.GetItemStatus(loItem, .T.)
 
@@ -11900,6 +11905,12 @@ DEFINE CLASS projectexplorertageditor AS projectexplorermodaldialog OF "projecte
 	ENDPROC
 
 	PROCEDURE cmdRemove.Click
+		if eof('ProjectExplorerTags')
+			return
+		endif
+		if not Thisform.YesNo('Remove tag "' + ProjectExplorerTags.Name + '"?')
+			return
+		endif
 		if not eof('ProjectExplorerTags')
 			delete in ProjectExplorerTags
 			skip in ProjectExplorerTags
