@@ -1613,6 +1613,7 @@ git rev-parse --abbrev-ref HEAD > "<<lcBranchFile>>"
 		*** TODO: this looks for an English message. How to localize it?
 								if not 'unmerged paths' $ This.cResponse
 									This.LogCommand('UpdateFromRemoteInternal', 'Conflicts resolved, committing')
+									This.lConflictsResolved = .T.
 									llReturn = This.CommitAllFilesInternal('Merge conflict commit')
 								else
 									This.LogCommand('UpdateFromRemoteInternal', 'Unresolved conflicts remain after resolve dialog')
@@ -8438,6 +8439,7 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 		*m: getincomingchangesinternal		&& Fetches and returns the number of incoming commits from the remote
 		*m: updatefromremote		&& Updates from a remote repository
 		*m: updatefromremoteinternal		&& Updates from a remote repository
+		*p: lconflictsresolved		&& .T. if merge conflicts were detected and resolved in the last update
 		*m: visualdiff		&& Displays the visual diff for the file
 		*m: visualdiffinternal		&& Displays the visual diff for the file
 		*p: cfileaddmessage		&& The message to use when auto-committing file additions
@@ -8461,6 +8463,7 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 		cincominglog =
 		cremotebranch =
 		crepositoryfolder =
+		lconflictsresolved = .F.
 		lautocommitchanges = .F.
 		lusegui = .F.
 		Name = "versioncontroloperations"
@@ -8499,6 +8502,7 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 			<memberdata name="cincomingfiles" display="cIncomingFiles"/>
 			<memberdata name="cincominglog" display="cIncomingLog"/>
 			<memberdata name="cremotebranch" display="cRemoteBranch"/>
+			<memberdata name="lconflictsresolved" display="lConflictsResolved"/>
 			<memberdata name="removefiles" display="RemoveFiles"/>
 			<memberdata name="removefilesinternal" display="RemoveFilesInternal"/>
 			<memberdata name="revertfiles" display="RevertFiles"/>
@@ -10190,10 +10194,11 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 		*==============================================================================
 		
 		local llReturn
-		This.cErrorMessage = ''
-		
+		This.cErrorMessage      = ''
+		This.lConflictsResolved = .F.
+
 		* Execute any addin.
-		
+
 		if vartype(This.oAddins) = 'O' and ;
 			not This.oAddins.ExecuteAddin('BeforeUpdateFromRemote')
 			return .F.
