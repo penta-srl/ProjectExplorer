@@ -1552,71 +1552,95 @@ git rev-parse --abbrev-ref HEAD > "<<lcBranchFile>>"
 			lcFile
 		
 		* Do the fetch.
-		
+
 		if This.lUseTortoise and This.lUseGUI
 			lcCommand = 'tortoisegitproc /command:fetch'
 		else
-			lcCommand = 'git fetch > results.txt'
+			lcCommand = 'git fetch 2>&1 > results.txt'
 		endif This.lUseTortoise ...
+		This.LogCommand('UpdateFromRemoteInternal', 'FETCH command: ' + lcCommand)
 		llReturn = This.RunCommand(lcCommand)
+		This.LogCommand('UpdateFromRemoteInternal', 'FETCH response [llReturn=' + transform(llReturn) + ']: ' + This.cResponse)
 		if llReturn
-		
+
 		* Get a list of the changes so we can reconstitute the binaries if necessary.
-		
-			lcBranch  = strextract(This.cResponse, ' -> ', ccCR)
+		* Detect the current branch explicitly rather than parsing fetch output, which
+		* may not contain the expected " -> " pattern (e.g. when stderr is not captured).
+
+			lcBranch = strextract(This.cResponse, ' -> ', ccCR)
 			if empty(lcBranch)
-				lcBranch = '...origin/master'
+				This.RunCommand('git rev-parse --abbrev-ref HEAD > results.txt')
+				lcBranch = 'origin/' + alltrim(chrtran(This.cResponse, ccCR + ccLF, ''))
 			endif empty(lcBranch)
+			This.LogCommand('UpdateFromRemoteInternal', 'Branch detected: ' + lcBranch)
 			lcCommand = 'git diff --name-only ' + lcBranch + ' > results.txt'
+			This.LogCommand('UpdateFromRemoteInternal', 'DIFF command: ' + lcCommand)
 			llReturn  = This.RunCommand(lcCommand)
 			lcFiles   = This.cResponse
+			This.LogCommand('UpdateFromRemoteInternal', 'DIFF response [llReturn=' + transform(llReturn) + ']: ' + lcFiles)
 			do case
 				case not llReturn
-		
+					This.LogCommand('UpdateFromRemoteInternal', 'DIFF failed')
+
 		* There were no files updated.
-		
+
 				case empty(lcFiles)
+					This.LogCommand('UpdateFromRemoteInternal', 'No changes: repository is up-to-date')
 					This.cErrorMessage = 'The local repository is up-to-date.'
 					llReturn = .F.
-		
+
 		* Do the merge. If there was a conflict, display the conflict dialog if we're
 		* using TortoiseGit so the user has a chance to fix the conflict. If they do,
 		* do a merge commit.
-		
+
 				otherwise
 					lcCommand = 'git merge fetch_head > results.txt'
+					This.LogCommand('UpdateFromRemoteInternal', 'MERGE command: ' + lcCommand)
 					llReturn  = This.RunCommand(lcCommand)
+					This.LogCommand('UpdateFromRemoteInternal', 'MERGE response [llReturn=' + transform(llReturn) + ']: ' + This.cResponse)
 					if llReturn
 		*** TODO: this looks for an English message. How to localize it?
 						do case
 							case not 'Merge conflict' $ This.cResponse
+								This.LogCommand('UpdateFromRemoteInternal', 'Merge succeeded, no conflicts')
 							case This.lUseTortoise and This.lUseGUI
+								This.LogCommand('UpdateFromRemoteInternal', 'Merge conflict detected, opening TortoiseGit resolve dialog')
 								lcCommand = 'TortoiseGitProc /command:resolve'
 								llReturn  = This.RunCommand(lcCommand)
 								lcCommand = 'git status > results.txt'
 								llReturn  = This.RunCommand(lcCommand)
+								This.LogCommand('UpdateFromRemoteInternal', 'STATUS after resolve [llReturn=' + transform(llReturn) + ']: ' + This.cResponse)
 		*** TODO: this looks for an English message. How to localize it?
 								if not 'unmerged paths' $ This.cResponse
+									This.LogCommand('UpdateFromRemoteInternal', 'Conflicts resolved, committing')
 									llReturn = This.CommitAllFilesInternal('Merge conflict commit')
+								else
+									This.LogCommand('UpdateFromRemoteInternal', 'Unresolved conflicts remain after resolve dialog')
 								endif not 'unmerged paths' $ This.cResponse
 							otherwise
+								This.LogCommand('UpdateFromRemoteInternal', 'Merge conflict but no TortoiseGit GUI, returning error')
 								This.cErrorMessage = This.cResponse
 								llReturn = .F.
 						endcase
 				endif llReturn
 			endcase
-		
+
 		* Reconstitute the binaries if necessary. We'll call ConvertTextToBinary for
 		* each file because it'll ignore any that aren't text equivalents.
-		
+
 			if This.nIncludeInVersionControl = 2 and llReturn
 				lnFiles = alines(laFiles, lcFiles, 5)
+				This.LogCommand('UpdateFromRemoteInternal', 'Reconstituting binaries: ' + transform(lnFiles) + ' file(s)')
 				for lnI = 1 to lnFiles
 					lcFile = laFiles[lnI]
+					This.LogCommand('UpdateFromRemoteInternal', 'ConvertTextToBinary: ' + lcFile)
 					This.oConverter.ConvertTextToBinary(lcFile)
 				next lnI
+			else
+				This.LogCommand('UpdateFromRemoteInternal', 'Binary reconstitution skipped [nIncludeInVersionControl=' + transform(This.nIncludeInVersionControl) + ', llReturn=' + transform(llReturn) + ']')
 			endif This.nIncludeInVersionControl = 2 ...
 		endif llReturn
+		This.LogCommand('UpdateFromRemoteInternal', 'END [llReturn=' + transform(llReturn) + ', cErrorMessage=' + This.cErrorMessage + ']')
 		return llReturn
 		
 	ENDPROC
