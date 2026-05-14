@@ -1642,7 +1642,75 @@ git rev-parse --abbrev-ref HEAD > "<<lcBranchFile>>"
 		endif llReturn
 		This.LogCommand('UpdateFromRemoteInternal', 'END [llReturn=' + transform(llReturn) + ', cErrorMessage=' + This.cErrorMessage + ']')
 		return llReturn
-		
+
+	ENDPROC
+
+	PROTECTED PROCEDURE getincomingchangesinternal		&& Fetches and returns the number of incoming commits from the remote
+		*==============================================================================
+		* Method:			GetIncomingChangesInternal
+		* Status:			Protected
+		* Purpose:			Fetches from the remote repository and returns the number of
+		*					incoming commits, storing the commit log and file list in
+		*					This.cIncomingLog and This.cIncomingFiles
+		* Author:			Nicola Marangon
+		* Last Revision:	14/05/2026
+		* Parameters:		none
+		* Returns:			number of incoming commits (0 = up-to-date or fetch error)
+		* Environment in:	none
+		* Environment out:	This.cIncomingLog contains the --oneline commit log
+		*					This.cIncomingFiles contains the list of changed files
+		*					This.cRemoteBranch contains the detected remote branch
+		*==============================================================================
+
+		local lcCommand, ;
+			llReturn, ;
+			laTemp[1], ;
+			lnCommits
+
+		* Fetch from remote.
+
+		if This.lUseTortoise and This.lUseGUI
+			lcCommand = 'tortoisegitproc /command:fetch'
+		else
+			lcCommand = 'git fetch 2>&1 > results.txt'
+		endif This.lUseTortoise ...
+		This.LogCommand('GetIncomingChangesInternal', 'FETCH command: ' + lcCommand)
+		llReturn = This.RunCommand(lcCommand)
+		This.LogCommand('GetIncomingChangesInternal', 'FETCH response [llReturn=' + transform(llReturn) + ']: ' + This.cResponse)
+		if not llReturn
+			This.cErrorMessage = This.cResponse
+			return 0
+		endif not llReturn
+
+		* Detect the remote tracking branch.
+
+		This.cRemoteBranch = strextract(This.cResponse, ' -> ', ccCR)
+		if empty(This.cRemoteBranch)
+			This.RunCommand('git rev-parse --abbrev-ref HEAD > results.txt')
+			This.cRemoteBranch = 'origin/' + alltrim(chrtran(This.cResponse, ccCR + ccLF, ''))
+		endif empty(This.cRemoteBranch)
+		This.LogCommand('GetIncomingChangesInternal', 'Branch: ' + This.cRemoteBranch)
+
+		* Get the list of incoming commits.
+
+		lcCommand = 'git log --oneline HEAD..' + This.cRemoteBranch + ' > results.txt'
+		This.LogCommand('GetIncomingChangesInternal', 'LOG command: ' + lcCommand)
+		This.RunCommand(lcCommand)
+		This.cIncomingLog = This.cResponse
+		This.LogCommand('GetIncomingChangesInternal', 'LOG response: ' + This.cIncomingLog)
+
+		* Get the list of files that will change.
+
+		lcCommand = 'git diff --name-only HEAD..' + This.cRemoteBranch + ' > results.txt'
+		This.LogCommand('GetIncomingChangesInternal', 'FILES command: ' + lcCommand)
+		This.RunCommand(lcCommand)
+		This.cIncomingFiles = This.cResponse
+		This.LogCommand('GetIncomingChangesInternal', 'FILES response: ' + This.cIncomingFiles)
+
+		lnCommits = iif(empty(alltrim(This.cIncomingLog)), 0, alines(laTemp, alltrim(This.cIncomingLog), 5))
+		This.LogCommand('GetIncomingChangesInternal', 'Incoming commits: ' + transform(lnCommits))
+		return lnCommits
+
 	ENDPROC
 
 	PROCEDURE visualdiffinternal
@@ -8366,12 +8434,17 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 		*m: revertfilesinternal		&& Reverts several files
 		*m: revisionhistory		&& Display the revision history for the specified file
 		*m: revisionhistoryinternal		&& Display the revision history for the specified file
+		*m: getincomingchanges		&& Fetches and returns the number of incoming commits from the remote
+		*m: getincomingchangesinternal		&& Fetches and returns the number of incoming commits from the remote
 		*m: updatefromremote		&& Updates from a remote repository
 		*m: updatefromremoteinternal		&& Updates from a remote repository
 		*m: visualdiff		&& Displays the visual diff for the file
 		*m: visualdiffinternal		&& Displays the visual diff for the file
 		*p: cfileaddmessage		&& The message to use when auto-committing file additions
 		*p: cfileremovemessage		&& The message to use when auto-committing file removals
+		*p: cincomingfiles		&& The list of files that will change in the next update
+		*p: cincominglog		&& The --oneline log of commits incoming from the remote
+		*p: cremotebranch		&& The detected remote tracking branch
 		*p: crepositoryfolder		&& The folder containing the repository
 		*p: lautocommitchanges		&& .T. to auto-commit changes
 		*p: lusegui		&& .T. to use version control GUI functions
@@ -8382,9 +8455,12 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 
 	PROTECTED oaddins
 	*<PropValue>
-		cfileaddmessage = 
-		cfileremovemessage = 
-		crepositoryfolder = 
+		cfileaddmessage =
+		cfileremovemessage =
+		cincomingfiles =
+		cincominglog =
+		cremotebranch =
+		crepositoryfolder =
 		lautocommitchanges = .F.
 		lusegui = .F.
 		Name = "versioncontroloperations"
@@ -8418,6 +8494,11 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 			<memberdata name="visualdiffinternal" display="VisualDiffInternal"/>
 			<memberdata name="addfiles" display="AddFiles"/>
 			<memberdata name="addfilesinternal" display="AddFilesInternal"/>
+			<memberdata name="getincomingchanges" display="GetIncomingChanges"/>
+			<memberdata name="getincomingchangesinternal" display="GetIncomingChangesInternal"/>
+			<memberdata name="cincomingfiles" display="cIncomingFiles"/>
+			<memberdata name="cincominglog" display="cIncomingLog"/>
+			<memberdata name="cremotebranch" display="cRemoteBranch"/>
 			<memberdata name="removefiles" display="RemoveFiles"/>
 			<memberdata name="removefilesinternal" display="RemoveFilesInternal"/>
 			<memberdata name="revertfiles" display="RevertFiles"/>
@@ -10128,7 +10209,34 @@ DEFINE CLASS versioncontroloperations AS projectexplorercustom OF "projectexplor
 			This.oAddins.ExecuteAddin('AfterUpdateFromRemote')
 		endif vartype(This.oAddins) = 'O'
 		return llReturn
-		
+
+	ENDPROC
+
+	PROCEDURE getincomingchanges		&& Fetches and returns the number of incoming commits from the remote
+		*==============================================================================
+		* Method:			GetIncomingChanges
+		* Status:			Public
+		* Purpose:			Fetches from the remote repository and returns the number of
+		*					incoming commits; stores details in cIncomingLog, cIncomingFiles,
+		*					and cRemoteBranch for use by the UI before confirming the update
+		* Author:			Nicola Marangon
+		* Last Revision:	14/05/2026
+		* Parameters:		none
+		* Returns:			number of incoming commits (0 = up-to-date or error)
+		* Environment in:	none
+		* Environment out:	This.cIncomingLog, This.cIncomingFiles, This.cRemoteBranch set
+		*==============================================================================
+
+		This.cErrorMessage  = ''
+		This.cIncomingLog   = ''
+		This.cIncomingFiles = ''
+		This.cRemoteBranch  = ''
+		return This.GetIncomingChangesInternal()
+
+	ENDPROC
+
+	PROTECTED PROCEDURE getincomingchangesinternal		&& Fetches and returns the number of incoming commits from the remote
+		return 0
 	ENDPROC
 
 	PROTECTED PROCEDURE updatefromremoteinternal		&& Updates from a remote repository

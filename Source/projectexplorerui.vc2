@@ -7707,29 +7707,68 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		*==============================================================================
 		
 		* Bug out if we're not using version control.
-		
+
 		if not This.oSolution.lHaveVersionControl
 			return .F.
 		endif not This.oSolution.lHaveVersionControl
-		
+
+		local llReturn, ;
+			lnIncoming, ;
+			lcMessage, ;
+			lcLog, ;
+			lcFiles
+
 		* Close all projects first because we may need to regenerate the PJX files.
-		
+
 		This.oProject = NULL
 		This.oSolution.CloseProjects()
-		
-		* Update from a remote repository.
-		
+
+		* Fetch and check for incoming changes before proceeding.
+
+		wait window 'Checking remote repository...' nowait
+		lnIncoming = This.oSolution.oVersionControl.GetIncomingChanges()
+		wait clear
+
+		if lnIncoming = 0
+			This.oSolution.OpenProjects()
+			This.SelectProject()
+			if empty(This.oSolution.oVersionControl.cErrorMessage)
+				This.ShowMessage('The local repository is up-to-date.')
+			else
+				This.ShowErrorMessage(This.oSolution.oVersionControl.cErrorMessage)
+			endif empty(This.oSolution.oVersionControl.cErrorMessage)
+			return .F.
+		endif lnIncoming = 0
+
+		* Show a preview of incoming changes and ask for confirmation.
+
+		lcLog   = alltrim(This.oSolution.oVersionControl.cIncomingLog)
+		lcFiles = alltrim(This.oSolution.oVersionControl.cIncomingFiles)
+		lcMessage = 'Incoming changes from ' + This.oSolution.oVersionControl.cRemoteBranch + ':' + chr(13) + chr(13) + ;
+			transform(lnIncoming) + ' commit(s):' + chr(13) + ;
+			iif(len(lcLog) > 500, left(lcLog, 500) + '...' + chr(13), lcLog + chr(13)) + chr(13) + ;
+			'Files that will be updated:' + chr(13) + ;
+			iif(len(lcFiles) > 400, left(lcFiles, 400) + '...' + chr(13), lcFiles + chr(13)) + chr(13) + ;
+			'Proceed with update?'
+		if messagebox(lcMessage, 4 + 32, 'Update from Remote Repository') <> 6
+			This.oSolution.OpenProjects()
+			This.SelectProject()
+			return .F.
+		endif messagebox ...
+
+		* Perform the update.
+
 		wait window 'Updating from remote repository...' nowait
 		llReturn = This.oSolution.oVersionControl.UpdateFromRemote()
 		wait clear
-		
+
 		* Reopen the projects.
-		
+
 		This.oSolution.OpenProjects()
 		This.SelectProject()
-		
+
 		* If we succeeded, reload the solution because items may be added or removed.
-		
+
 		if llReturn
 			This.oProject.oProjectSettings.GetSettings()
 			This.oProject.oProjectItems.Clear()
