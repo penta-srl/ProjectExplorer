@@ -7508,10 +7508,16 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		endif This.oSolution.oProjects.Count > 1 ...
 		This.oProjectSettings = This.oProject.oProjectSettings.Clone()
 		
+		local loActiveProject
+		try
+			loActiveProject = _vfp.ActiveProject
+		catch
+			loActiveProject = null
+		endtry
 		if This.lActivateProjectOnSelect and ;
 			vartype(This.oProject.oProject) = 'O' and ;
-			(vartype(_vfp.ActiveProject) <> 'O' or ;
-			_vfp.ActiveProject.Name <> This.oProject.oProject.Name)
+			(vartype(loActiveProject) <> 'O' or ;
+			loActiveProject.Name <> This.oProject.oProject.Name)
 			this.oProject.ActivateProject()
 		endif This.lActivateProjectOnSelect ...
 		
