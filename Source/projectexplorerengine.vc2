@@ -1556,7 +1556,7 @@ git rev-parse --abbrev-ref HEAD > "<<lcBranchFile>>"
 		if This.lUseTortoise and This.lUseGUI
 			lcCommand = 'tortoisegitproc /command:fetch'
 		else
-			lcCommand = 'git fetch 2>&1 > results.txt'
+			lcCommand = 'git fetch > results.txt'
 		endif This.lUseTortoise ...
 		This.LogCommand('UpdateFromRemoteInternal', 'FETCH command: ' + lcCommand)
 		llReturn = This.RunCommand(lcCommand)
@@ -1673,7 +1673,7 @@ git rev-parse --abbrev-ref HEAD > "<<lcBranchFile>>"
 		if This.lUseTortoise and This.lUseGUI
 			lcCommand = 'tortoisegitproc /command:fetch'
 		else
-			lcCommand = 'git fetch 2>&1 > results.txt'
+			lcCommand = 'git fetch > results.txt'
 		endif This.lUseTortoise ...
 		This.LogCommand('GetIncomingChangesInternal', 'FETCH command: ' + lcCommand)
 		llReturn = This.RunCommand(lcCommand)
