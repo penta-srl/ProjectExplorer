@@ -4293,6 +4293,15 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 					lcFile = This.oSolution.oVersionControl.oConverter.GetTextFileName(lcFile)
 					This.oSolution.oVersionControl.oConverter.ConvertTextToBinary(lcFile, ;
 						llAll)
+					* Reopen any projects that were closed during conversion (e.g., when
+					* converting a .PJA to .PJX the open project was closed to release the
+					* file lock; without this the Activate handler would release PE).
+					local loConvProject
+					for each loConvProject in This.oSolution.oProjects foxobject
+						if vartype(loConvProject.oProject) <> 'O'
+							loConvProject.OpenProject()
+						endif vartype(loConvProject.oProject) <> 'O'
+					next loConvProject
 					This.oAddins.ExecuteAddin('AfterConvertTextToBinary', loItem, This)
 					if loItem.IsFile
 						This.GetItemStatus(loItem)

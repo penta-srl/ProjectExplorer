@@ -151,22 +151,29 @@ DEFINE CLASS binarytotextconversionfoxbin2prg AS binarytotextconversion OF "proj
 		lparameters tcFile, ;
 			tlAll
 		local loConvert, ;
-			loSettings
+			loSettings, ;
+			lcType
 		loConvert = This.GetFoxBin2PRGObject()
 		if vartype(loConvert) = 'O'
-		
+
 		* Get the FoxBin2PRG settings for the folder the file is in.
-		
+
 			loSettings = loConvert.get_DirSettings(justpath(tcFile))
-		
-		* If the file type is supported, convert it. If it's a DBF, close it first.
-		
-			if not empty(This.GetFileType(tcFile, loSettings))
+
+		* If the file type is supported, convert it. Close the file first if it's
+		* a DBF or a project file (PJX), since FoxBin2PRG uses CREATE TABLE to
+		* rebuild those and will fail with Error 3 if they are already open.
+
+			lcType = This.GetFileType(tcFile, loSettings)
+			if not empty(lcType)
 				if lower(justext(tcFile)) = 'dbf'
 					CloseFile(tcFile)
 				endif lower(justext(tcFile)) = 'dbf'
+				if lcType = 'pjx'
+					CloseFile(forceext(tcFile, 'pjx'))
+				endif lcType = 'pjx'
 				loConvert.Execute(tcFile, iif(tlAll, '*', ''))
-			endif not empty(This.GetFileType(tcFile, loSettings))
+			endif not empty(lcType)
 		endif vartype(loConvert) = 'O'
 		
 	ENDPROC
