@@ -3271,8 +3271,8 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		citemcursor = 
 		clogfile = 
 		cmetadataalias = 
-		cmetadatatable = 
-		cproject = 
+		cmetadatatable =
+		cproject =
 		llogging = .F.
 		lmetadatasubfolder = .F.
 		lopenedproject = .F.
@@ -3723,12 +3723,15 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 
 			* Migrate the metadata table if lMetaDataSubFolder changed since the session started.
 
-			local lcDesiredTable, lcSrc, lcDst, lnI
-			local array laExt[3]
+			local lcDesiredTable, lcSrc, lcDst, lnI, lcSrcDir, lnFiles
+			local array laExt[3], laSrcFiles[1]
 			laExt[1] = 'dbf'
 			laExt[2] = 'cdx'
 			laExt[3] = 'fpt'
-			lcDesiredTable = addbs(justpath(This.cProject)) + ;
+			local lcCloseBase
+			lcCloseBase    = iif(pemstatus(This, 'cSolutionPath', 5) and not empty(This.cSolutionPath), ;
+				addbs(justpath(This.cSolutionPath)), addbs(justpath(This.cProject)))
+			lcDesiredTable = lcCloseBase + ;
 				iif(This.lMetaDataSubFolder, ccMETADATA_SUBFOLDER + '\', '') + ;
 				juststem(This.cProject) + ccMETADATA_FILE
 			if not upper(lcDesiredTable) == upper(This.cMetaDataTable) and file(This.cMetaDataTable)
@@ -3743,6 +3746,15 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 						rename (lcSrc) to (lcDst)
 					endif file(lcSrc) and not file(lcDst)
 				next lnI
+				* Remove the PE_MetaData subfolder if the migration emptied it.
+				lcSrcDir = justpath(This.cMetaDataTable)
+				if lower(justfname(lcSrcDir)) == lower(ccMETADATA_SUBFOLDER) and ;
+						directory(lcSrcDir)
+					lnFiles = adir(laSrcFiles, addbs(lcSrcDir) + '*.*')
+					if lnFiles = 0
+						rd (lcSrcDir)
+					endif lnFiles = 0
+				endif lower(justfname(lcSrcDir)) ...
 			else
 				use in select(This.cMetaDataAlias)
 			endif not upper(lcDesiredTable) ...
@@ -4800,27 +4812,46 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 
 		* Close any existing table.
 
-		lcAlias        = This.cMetaDataAlias
-		lcMetaDataFile = This.cMetaDataTable
+		lcAlias = This.cMetaDataAlias
 		use in select(lcAlias)
 
-		* Locate the metadata file. Compute both possible paths directly from cProject
-		* (not from cMetaDataTable, which may be stale due to settings-restore timing).
-		* Prefer the desired location; fall back to the alternate if the desired is absent.
+		* Compute both possible paths from the solution root (or project root as fallback)
+		* and the current lMetaDataSubFolder. Never trust cMetaDataTable (may be stale).
 
-		local lcProjectRoot, lcRootFile, lcSubFile, lcAltFile
-		lcProjectRoot = addbs(justpath(This.cProject))
-		lcRootFile    = lcProjectRoot + juststem(This.cProject) + ccMETADATA_FILE
-		lcSubFile     = lcProjectRoot + ccMETADATA_SUBFOLDER + '\' + juststem(This.cProject) + ccMETADATA_FILE
+		local lcBaseRoot, lcRootFile, lcSubFile, lcAltFile
+		lcBaseRoot = iif(pemstatus(This, 'cSolutionPath', 5) and not empty(This.cSolutionPath), ;
+			addbs(justpath(This.cSolutionPath)), addbs(justpath(This.cProject)))
+		lcRootFile = lcBaseRoot + juststem(This.cProject) + ccMETADATA_FILE
+		lcSubFile  = lcBaseRoot + ccMETADATA_SUBFOLDER + '\' + juststem(This.cProject) + ccMETADATA_FILE
 		if This.lMetaDataSubFolder
-			lcAltFile = lcRootFile
+			lcMetaDataFile = lcSubFile
+			lcAltFile      = lcRootFile
 		else
-			lcAltFile = lcSubFile
+			lcMetaDataFile = lcRootFile
+			lcAltFile      = lcSubFile
 		endif This.lMetaDataSubFolder
+
+		* Fallback 1: desired absent, alternate present (option changed between sessions).
 		if not file(lcMetaDataFile) and file(lcAltFile)
-			lcMetaDataFile      = lcAltFile
-			This.cMetaDataTable = lcAltFile
+			lcMetaDataFile = lcAltFile
 		endif not file(lcMetaDataFile) ...
+
+		* Fallback 2: neither solution-relative location exists — check project-relative
+		* locations for backward compatibility (metadata created before this change).
+		if not file(lcMetaDataFile)
+			local lcProjRoot, lcProjRootFile, lcProjSubFile
+			lcProjRoot     = addbs(justpath(This.cProject))
+			lcProjRootFile = lcProjRoot + juststem(This.cProject) + ccMETADATA_FILE
+			lcProjSubFile  = lcProjRoot + ccMETADATA_SUBFOLDER + '\' + juststem(This.cProject) + ccMETADATA_FILE
+			do case
+			case file(lcProjRootFile)
+				lcMetaDataFile = lcProjRootFile
+			case file(lcProjSubFile)
+				lcMetaDataFile = lcProjSubFile
+			endcase
+		endif not file(lcMetaDataFile)
+
+		This.cMetaDataTable = lcMetaDataFile
 
 		* Ensure the metadata directory exists (required when lMetaDataSubFolder is .T.).
 
@@ -5325,7 +5356,8 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		* Store the project path and name and path for its meta data table.
 		
 		lcProjectFile       = juststem(This.cProject)
-		lcProjectPath       = addbs(justpath(This.cProject))
+		lcProjectPath       = iif(pemstatus(This, 'cSolutionPath', 5) and not empty(This.cSolutionPath), ;
+			addbs(justpath(This.cSolutionPath)), addbs(justpath(This.cProject)))
 		if This.lMetaDataSubFolder
 			This.cMetaDataTable = lcProjectPath + ccMETADATA_SUBFOLDER + '\' + lcProjectFile + ccMETADATA_FILE
 		else
@@ -7256,6 +7288,7 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 		loProject = newobject(This.cProjectEngineClass, This.cProjectEngineLibrary, ;
 			'', This.oAddins, This.cItemCursor)
 		loProject.lMetaDataSubFolder = This.lMetaDataSubFolder
+		loProject.AddProperty('cSolutionPath', This.cSolutionFile)
 		llOK      = loProject.SetProject(tcProject)
 		if llOK
 			loProject.oVersionControl = This.oVersionControl
