@@ -3253,6 +3253,7 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		*p: cmetadatatable		&& The path for the meta data table
 		*p: cproject		&& The path for the project we're managing
 		*p: llogging		&& .T. to do logging
+		*p: lmetadatasubfolder		&& .T. to store meta data table in PE_MetaData subfolder
 		*p: lopenedproject		&& .T. if we opened the project
 		*p: lprojectvisible		&& .T. if the Project Manager is visible
 		*p: oaddins		&& A reference to a ProjectAddins object
@@ -3273,6 +3274,7 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		cmetadatatable = 
 		cproject = 
 		llogging = .F.
+		lmetadatasubfolder = .F.
 		lopenedproject = .F.
 		lprojectvisible = .F.
 		Name = "projectengine"
@@ -3339,6 +3341,7 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 			<memberdata name="updatemetadata" display="UpdateMetaData"/>
 			<memberdata name="llogging" display="lLogging"/>
 			<memberdata name="clogfile" display="cLogFile"/>
+			<memberdata name="lmetadatasubfolder" display="lMetaDataSubFolder"/>
 			<memberdata name="activateproject" display="ActivateProject"/>
 		</VFPData>
 	*</PropValue>
@@ -3717,7 +3720,32 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 			endif not tlRelease ...
 			This.oProject                  = .NULL.
 			This.oProjectSettings.oProject = .NULL.
-			use in select(This.cMetaDataAlias)
+
+			* Migrate the metadata table if lMetaDataSubFolder changed since the session started.
+
+			local lcDesiredTable, lcSrc, lcDst, lnI
+			local array laExt[3]
+			laExt[1] = 'dbf'
+			laExt[2] = 'cdx'
+			laExt[3] = 'fpt'
+			lcDesiredTable = addbs(justpath(This.cProject)) + ;
+				iif(This.lMetaDataSubFolder, ccMETADATA_SUBFOLDER + '\', '') + ;
+				juststem(This.cProject) + ccMETADATA_FILE
+			if not upper(lcDesiredTable) == upper(This.cMetaDataTable) and file(This.cMetaDataTable)
+				if not directory(justpath(lcDesiredTable))
+					md (justpath(lcDesiredTable))
+				endif
+				use in select(This.cMetaDataAlias)
+				for lnI = 1 to 3
+					lcSrc = forceext(This.cMetaDataTable, laExt[lnI])
+					lcDst = forceext(lcDesiredTable, laExt[lnI])
+					if file(lcSrc) and not file(lcDst)
+						rename (lcSrc) to (lcDst)
+					endif file(lcSrc) and not file(lcDst)
+				next lnI
+			else
+				use in select(This.cMetaDataAlias)
+			endif not upper(lcDesiredTable) ...
 		endif vartype(This.oProject) = 'O'
 		
 	ENDPROC
@@ -4765,16 +4793,41 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		
 		local lcAlias, ;
 			lcMetaDataFile, ;
+			lcAltFile, ;
 			llReturn, ;
 			lnSelect, ;
 			loException as Exception
-		
+
 		* Close any existing table.
-		
+
 		lcAlias        = This.cMetaDataAlias
 		lcMetaDataFile = This.cMetaDataTable
 		use in select(lcAlias)
-		
+
+		* Locate the metadata file. Compute both possible paths directly from cProject
+		* (not from cMetaDataTable, which may be stale due to settings-restore timing).
+		* Prefer the desired location; fall back to the alternate if the desired is absent.
+
+		local lcProjectRoot, lcRootFile, lcSubFile, lcAltFile
+		lcProjectRoot = addbs(justpath(This.cProject))
+		lcRootFile    = lcProjectRoot + juststem(This.cProject) + ccMETADATA_FILE
+		lcSubFile     = lcProjectRoot + ccMETADATA_SUBFOLDER + '\' + juststem(This.cProject) + ccMETADATA_FILE
+		if This.lMetaDataSubFolder
+			lcAltFile = lcRootFile
+		else
+			lcAltFile = lcSubFile
+		endif This.lMetaDataSubFolder
+		if not file(lcMetaDataFile) and file(lcAltFile)
+			lcMetaDataFile      = lcAltFile
+			This.cMetaDataTable = lcAltFile
+		endif not file(lcMetaDataFile) ...
+
+		* Ensure the metadata directory exists (required when lMetaDataSubFolder is .T.).
+
+		if not directory(justpath(lcMetaDataFile))
+			md (justpath(lcMetaDataFile))
+		endif
+
 		* If the meta data table doesn't exist, create it.
 		
 		llReturn = file(lcMetaDataFile)
@@ -5273,7 +5326,11 @@ DEFINE CLASS projectengine AS projectexplorercustom OF "projectexplorerctrls.vcx
 		
 		lcProjectFile       = juststem(This.cProject)
 		lcProjectPath       = addbs(justpath(This.cProject))
-		This.cMetaDataTable = lcProjectPath + lcProjectFile + ccMETADATA_FILE
+		if This.lMetaDataSubFolder
+			This.cMetaDataTable = lcProjectPath + ccMETADATA_SUBFOLDER + '\' + lcProjectFile + ccMETADATA_FILE
+		else
+			This.cMetaDataTable = lcProjectPath + lcProjectFile + ccMETADATA_FILE
+		endif This.lMetaDataSubFolder
 		
 		* Create a ProjectSettings object.
 		
@@ -5470,6 +5527,7 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 		*p: cversioncontrollibrary		&& The library containing the class specified in cVersionControlClass
 		*p: lautocommitchanges		&& .T. to auto-commit changes
 		*p: lhaveversioncontrol		&& .T. if the solution uses version control
+		*p: lmetadatasubfolder		&& .T. to store meta data tables in PE_MetaData subfolder
 		*p: luseversioncontrolgui		&& .T. to use version control GUI functions
 		*p: nincludeinversioncontrol		&& What to include in version control: 1 = VFP binaries only, 2 = text equivalents only, 3 = both
 		*p: oaddins		&& A reference to a ProjectAddins object
@@ -5498,6 +5556,7 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 		cversioncontrollibrary = 
 		lautocommitchanges = .F.
 		lhaveversioncontrol = .F.
+		lmetadatasubfolder = .F.
 		luseversioncontrolgui = .F.
 		Name = "projectexplorersolution"
 		nincludeinversioncontrol = 0
@@ -5550,6 +5609,7 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 			<memberdata name="cconverterlibrary" display="cConverterLibrary"/>
 			<memberdata name="cconverterpath" display="cConverterPath"/>
 			<memberdata name="luseversioncontrolgui" display="lUseVersionControlGUI"/>
+			<memberdata name="lmetadatasubfolder" display="lMetaDataSubFolder"/>
 			<memberdata name="ctextconverter" display="cTextConverter"/>
 			<memberdata name="csettingsfile" display="cSettingsFile"/>
 			<memberdata name="ctextconverter_assign" display="cTextConverter_Assign"/>
@@ -7195,6 +7255,7 @@ DEFINE CLASS projectexplorersolution AS projectexplorercustom OF "projectexplore
 		This.cErrorMessage = ''
 		loProject = newobject(This.cProjectEngineClass, This.cProjectEngineLibrary, ;
 			'', This.oAddins, This.cItemCursor)
+		loProject.lMetaDataSubFolder = This.lMetaDataSubFolder
 		llOK      = loProject.SetProject(tcProject)
 		if llOK
 			loProject.oVersionControl = This.oVersionControl

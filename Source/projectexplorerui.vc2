@@ -2015,6 +2015,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		*p: cversionnumber
 		*p: lactivateprojectonselect		&& .T. to activate the VFP project when a project is selected
 		*p: laddfiletoversioncontrolonadd		&& .T. to add a file to version control when it's added to a project
+		*p: lmetadatasubfolder		&& .T. to store the project meta data table in a PE_MetaData subfolder
 		*p: laddindebugmode		&& .T. to display messages when addins are executed
 		*p: lallowanyfiletype		&& .T. for the Add and New buttons to allow any file type or .F. for only a file of the selected type
 		*p: lconverttolowercase		&& .T. to convert file names to lower case after editing
@@ -2074,6 +2075,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		Icon = images\projectexplorer.ico
 		lactivateprojectonselect = .F.
 		laddfiletoversioncontrolonadd = .F.
+		lmetadatasubfolder = .F.
 		laddindebugmode = .F.
 		lallowanyfiletype = .F.
 		lconverttolowercase = .F.
@@ -2161,6 +2163,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 			<memberdata name="additem" display="AddItem"/>
 			<memberdata name="getprojectmanagersettings" display="GetProjectManagerSettings"/>
 			<memberdata name="lactivateprojectonselect" display="lActivateProjectOnSelect"/>
+			<memberdata name="lmetadatasubfolder" display="lMetaDataSubFolder"/>
 			<memberdata name="lmodifyondblclick" display="lModifyOnDblClick"/>
 			<memberdata name="lusecontainericons" display="lUseContainerIcons"/>
 			<memberdata name="laddfiletoversioncontrolonadd" display="lAddFileToVersionControlOnAdd"/>
@@ -4342,6 +4345,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		This.oSolution = newobject('ProjectExplorerSolution', lcLibrary, '', ;
 			This.oAddins, This.cSettingsFile)
 		This.oSolution.lUseVersionControlGUI = This.lUseVersionControlGUI
+		This.oSolution.lMetaDataSubFolder    = This.lMetaDataSubFolder
 		
 	ENDPROC
 
@@ -5399,6 +5403,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 			loForm.lUseGUI                  = .lUseVersionControlGUI
 			loForm.lConvertToLowerCase      = .lConvertToLowerCase
 			loForm.lActivateProjectOnSelect = .lActivateProjectOnSelect
+			loForm.lMetaDataSubFolder       = .lMetaDataSubFolder
 		endwith
 		loForm.Show()
 		if vartype(loForm) = 'O'
@@ -5416,6 +5421,13 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 				.lUseVersionControlGUI                 = loForm.lUseGUI
 				.lConvertToLowerCase                   = loForm.lConvertToLowerCase
 				.lActivateProjectOnSelect              = loForm.lActivateProjectOnSelect
+
+				.lMetaDataSubFolder           = loForm.lMetaDataSubFolder
+				.oSolution.lMetaDataSubFolder = loForm.lMetaDataSubFolder
+				local loProject2
+				for each loProject2 in .oSolution.oProjects foxobject
+					loProject2.lMetaDataSubFolder = loForm.lMetaDataSubFolder
+				next loProject2
 				.oSolution.lUseVersionControlGUI       = .lUseVersionControlGUI
 				if vartype(.oSolution.oVersionControl) = 'O'
 					.oSolution.oVersionControl.lUseGUI = .lUseVersionControlGUI
@@ -5801,9 +5813,11 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 			.F., .F.)
 		This.oPersist.AddItem('ActivateProjectOnSelect', 'Thisform.lActivateProjectOnSelect', 'L', ;
 			.F., .T.)
-		
+		This.oPersist.AddItem('MetaDataSubFolder', 'Thisform.lMetaDataSubFolder', 'L', ;
+			.F., .F.)
+
 		* Open a solution and exit if we didn't.
-		
+
 		llOK = This.OpenSolution(tuProject, .F., tlForcePrompt)
 		if not llOK
 			return .F.
@@ -7933,15 +7947,22 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 
 	PROCEDURE opersist.restore
 		lparameters tcItem
+		local loProject
 		if pcount() = 0
 			luReturn = dodefault()
 		else
 			luReturn = dodefault(tcItem)
 		endif pcount() = 0
-		Thisform.oSolution.lUseVersionControlGUI = Thisform.lUseVersionControlGUI
-		if vartype(Thisform.oSolution.oVersionControl) = 'O'
-			Thisform.oSolution.oVersionControl.lUseGUI = Thisform.lUseVersionControlGUI
-		endif vartype(Thisform.oSolution.oVersionControl) = 'O'
+		if vartype(Thisform.oSolution) = 'O'
+			Thisform.oSolution.lUseVersionControlGUI = Thisform.lUseVersionControlGUI
+			if vartype(Thisform.oSolution.oVersionControl) = 'O'
+				Thisform.oSolution.oVersionControl.lUseGUI = Thisform.lUseVersionControlGUI
+			endif vartype(Thisform.oSolution.oVersionControl) = 'O'
+			Thisform.oSolution.lMetaDataSubFolder = Thisform.lMetaDataSubFolder
+			for each loProject in Thisform.oSolution.oProjects foxobject
+				loProject.lMetaDataSubFolder = Thisform.lMetaDataSubFolder
+			next loProject
+		endif vartype(Thisform.oSolution) = 'O'
 		return luReturn
 		
 	ENDPROC
@@ -8262,6 +8283,7 @@ DEFINE CLASS projectexplorerformdockable AS projectexplorerform OF "projectexplo
 	*<PropValue>
 		Dockable = 1
 		DoCreate = .T.
+		lmetadatasubfolder = .F.
 		Name = "projectexplorerformdockable"
 		ShowWindow = 0
 		oSplitter.Name = "oSplitter"
@@ -10513,17 +10535,19 @@ DEFINE CLASS projectexploreroptions AS projectexplorermodaldialog OF "projectexp
 		*p: lshowsplitter		&& .T. for a visible splitter
 		*p: lusegui		&& .T. to use version control GUI functions
 		*p: lusetry		&& .T. to use TRY when running programs
+		*p: lmetadatasubfolder		&& .T. to store meta data in PE_MetaData subfolder
 		*p: ndblclickaction		&& What to do when an item is double-clicked
 		*p: nwindowtype		&& The window type: 1 = desktop, 2 = dockable, 3 = neither
 	*</DefinedPropArrayMethod>
 
 	*<PropValue>
 		Caption = "Options"
-		csettingsfile = 
-		cversioncontrolprovider = 
+		csettingsfile =
+		cversioncontrolprovider =
 		DoCreate = .T.
-		Height = 455
+		Height = 475
 		lactivateprojectonselect = .F.
+		lmetadatasubfolder = .F.
 		laddfiles = .F.
 		laddindebugmode = .F.
 		lallowanyfiletype = .F.
@@ -10556,6 +10580,7 @@ DEFINE CLASS projectexploreroptions AS projectexplorermodaldialog OF "projectexp
 			<memberdata name="lusegui" display="lUseGUI"/>
 			<memberdata name="lconverttolowercase" display="lConvertToLowerCase"/>
 			<memberdata name="lactivateprojectonselect" display="lActivateProjectOnSelect"/>
+			<memberdata name="lmetadatasubfolder" display="lMetaDataSubFolder"/>
 		</VFPData>
 	*</PropValue>
 
@@ -10584,6 +10609,21 @@ DEFINE CLASS projectexploreroptions AS projectexplorermodaldialog OF "projectexp
 		ToolTipText = "Turn this on to automatically activate the VFP project when it is selected in the tree", ;
 		Top = 380, ;
 		Width = 191, ;
+		ZOrderSet = 10
+		*< END OBJECT: ClassLib="projectexplorerctrls.vcx" BaseClass="checkbox" />
+
+	ADD OBJECT 'chkMetaDataSubFolder' AS projectexplorercheckbox WITH ;
+		Alignment = 0, ;
+		Caption = "Store \<metadata in PE_MetaData subfolder", ;
+		ControlSource = "Thisform.lMetaDataSubFolder", ;
+		Height = 17, ;
+		Left = 20, ;
+		Name = "chkMetaDataSubFolder", ;
+		StatusBarText = "Turn this on to store the project metadata table in a PE_MetaData subfolder instead of the project directory (takes effect on next project load)", ;
+		TabIndex = 21, ;
+		ToolTipText = "Turn this on to store the project metadata table in a PE_MetaData subfolder instead of the project directory (takes effect on next project load)", ;
+		Top = 397, ;
+		Width = 267, ;
 		ZOrderSet = 10
 		*< END OBJECT: ClassLib="projectexplorerctrls.vcx" BaseClass="checkbox" />
 
@@ -10770,14 +10810,14 @@ DEFINE CLASS projectexploreroptions AS projectexplorermodaldialog OF "projectexp
 		*< END OBJECT: ClassLib="projectexplorerlabelledbox.vcx" BaseClass="container" />
 
 	ADD OBJECT 'ctrOtherOptions' AS projectexplorerlabelledbox WITH ;
-		Height = 175, ;
+		Height = 195, ;
 		Left = 10, ;
 		Name = "ctrOtherOptions", ;
 		TabIndex = 11, ;
 		Top = 235, ;
 		Width = 300, ;
 		ZOrderSet = 0, ;
-		shpBox.Height = 169, ;
+		shpBox.Height = 189, ;
 		shpBox.Name = "shpBox", ;
 		shpBox.Width = 300, ;
 		lblLabel.Caption = " Other options ", ;
