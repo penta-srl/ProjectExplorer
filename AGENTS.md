@@ -70,6 +70,10 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 Write code consistent with the existing style of the application.
 
+### Binary/text conversion
+
+Do not run FoxBin2Prg or any other VFP binary/text conversion tool in this project. Do not regenerate `.vcx`, `.vct`, `.scx`, `.sct`, `.pjx`, `.pjt`, `.app`, or other VFP binary artifacts from text files, and do not convert binary artifacts back to text. The user will handle all text-to-binary and binary-to-text conversions manually.
+
 ### VFP9 HELP FILE
 In c:\vsrc\doc\external\vfp9_help you'll find the VFP9 language manual in HTML format
 
