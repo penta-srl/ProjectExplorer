@@ -3633,6 +3633,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		*					toProject       - a reference to the ProjectEngine object
 		*						for the project to build (optional: if it isn't passed,
 		*						This.oProject is used)
+		*					tlNoVersionControlStatus - .T. to skip updating status
 		* Returns:			.T.
 		* Environment in:	This.oOperations contains a reference to a
 		*						ProjectOperations object
@@ -3647,8 +3648,10 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 			tlShowErrors, ;
 			tlBuildNewGUIDs, ;
 			tlRunAfterBuild, ;
-			toProject
+			toProject, ;
+			tlNoVersionControlStatus
 		local loProject, ;
+			loVisibleProject, ;
 			lnFiles, ;
 			llOK, ;
 			lcMessage, ;
@@ -3663,8 +3666,8 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		
 		dimension laProjects[This.oSolution.oProjects.Count]
 		for lnI = 1 to This.oSolution.oProjects.Count
-			loProject       = This.oSolution.oProjects.Item(lnI)
-			laProjects[lnI] = loProject.oProject.Visible
+			loVisibleProject = This.oSolution.oProjects.Item(lnI)
+			laProjects[lnI]  = loVisibleProject.oProject.Visible
 		next lnI
 		
 		* If a project was passed, use it. Otherwise, use the selected project.
@@ -3689,10 +3692,10 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		
 		dimension laProjects[This.oSolution.oProjects.Count]
 		for lnI = 1 to This.oSolution.oProjects.Count
-			loProject       = This.oSolution.oProjects.Item(lnI)
-			if laProjects[lnI] <> loProject.oProject.Visible
-				loProject.oProject.Visible = laProjects[lnI]
-			endif laProjects[lnI] <> loProject.oProject.Visible
+			loVisibleProject = This.oSolution.oProjects.Item(lnI)
+			if laProjects[lnI] <> loVisibleProject.oProject.Visible
+				loVisibleProject.oProject.Visible = laProjects[lnI]
+			endif laProjects[lnI] <> loVisibleProject.oProject.Visible
 		next lnI
 		if llOK
 			do case
@@ -3725,7 +3728,9 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 					if This.oSolution.nIncludeInVersionControl > 1
 						This.oSolution.oVersionControl.oConverter.ConvertBinaryToText(loProject.cProject)
 					endif This.oSolution.nIncludeInVersionControl > 1
-					This.GetItemStatus(loProject.oProjectItem)
+					if not tlNoVersionControlStatus
+						This.GetItemStatus(loProject.oProjectItem)
+					endif not tlNoVersionControlStatus
 			endcase
 		
 		* An addin could have changed properties of the project, so get the settings
@@ -3783,13 +3788,15 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		* Parameters:		toProject - a reference to the ProjectEngine object for
 		*						the project to build (optional: if it isn't passed,
 		*						This.oProject is used)
+		*					tlNoVersionControlStatus - .T. to skip updating status
 		* Returns:			none
 		* Environment in:	This.oProject contains a reference to a ProjectEngine
 		*						object
 		* Environment out:	the project may have been build and defaults saved
 		*==============================================================================
 		
-		lparameters toProject
+		lparameters toProject, ;
+			tlNoVersionControlStatus
 		local loProject, ;
 			loForm
 		
@@ -3834,7 +3841,7 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		
 			This.BuildProject(loForm.cOutputFile, loForm.nBuildAction, ;
 				loForm.lRecompile, loForm.lDisplayErrors, loForm.lRegenerate, ;
-				loForm.lRunAfterBuild, loProject)
+				loForm.lRunAfterBuild, loProject, tlNoVersionControlStatus)
 		endif vartype(loForm) = 'O'
 		
 	ENDPROC
@@ -3859,7 +3866,8 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		*==============================================================================
 		
 		lparameters tlRebuild, ;
-			toProject
+			toProject, ;
+			tlNoVersionControlStatus
 		local loProject, ;
 			llHaveBuildDefaults, ;
 			lnBuildAction, ;
@@ -3891,12 +3899,13 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		endwith
 		if llHaveBuildDefaults
 			This.BuildProject(lcOutputName, lnBuildAction, llRecompile, ;
-				llDisplayErrors, llRegenerate, llRunAfterBuild, loProject)
+				llDisplayErrors, llRegenerate, llRunAfterBuild, loProject, ;
+				tlNoVersionControlStatus)
 		else
 		
 		* If there aren't any saved values, get them from the user.
 		
-			This.BuildProjectDialog(loProject)
+			This.BuildProjectDialog(loProject, tlNoVersionControlStatus)
 		endif llHaveBuildDefaults
 		
 	ENDPROC
@@ -3918,8 +3927,12 @@ DEFINE CLASS projectexplorerform AS projectexplorerexplorerformtreeview OF "proj
 		lparameters tlRebuild
 		local loProject
 		for each loProject in This.oSolution.oProjects foxobject
-			This.BuildProjectFromDefaults(tlRebuild, loProject)
+			This.BuildProjectFromDefaults(tlRebuild, loProject, .T.)
 		next loProject
+		if This.oSolution.lHaveVersionControl
+			This.oSolution.GetStatusForAllFiles()
+			This.LoadSolution(.F., .T.)
+		endif This.oSolution.lHaveVersionControl
 		
 	ENDPROC
 
